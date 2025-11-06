@@ -189,6 +189,9 @@
       </div>
     </div>
 
+    <!-- Suggested Activities -->
+    <div id="suggestedActivities" class="card" style="margin-bottom: 40px;"></div>
+
     <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Quick Actions</h2>
     <div class="action-grid">
       <button class="btn action-btn" onclick="showScreen('log')">📝 Log Activity</button>
@@ -412,6 +415,7 @@
             <label>Observation Type</label>
             <select id="observationType" onchange="updateObservationFields()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
               <option value="pest">Pest Observation</option>
+              <option value="growth">Growth Stage</option>
               <option value="stand">Stand Count</option>
               <option value="general">General Observation</option>
             </select>
@@ -443,6 +447,29 @@
                 <span id="severityLabel" style="font-weight: 600; color: #FF9800;">Medium</span>
                 <span>High</span>
               </div>
+            </div>
+          </div>
+
+          <div id="growthFields" class="hidden">
+            <div class="form-group">
+              <label>Crop Type</label>
+              <select id="growthCropType" onchange="updateGrowthStages()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                <option value="">Select crop...</option>
+                <option value="corn">Corn</option>
+                <option value="soybeans">Soybeans</option>
+                <option value="wheat">Wheat</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Growth Stage</label>
+              <select id="growthStage" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                <option value="">Select crop first...</option>
+              </select>
+            </div>
+
+            <div id="growthStageInfo" style="background: #e8f5e9; padding: 12px; border-radius: 6px; font-size: 13px; margin-top: 10px; display: none;">
+              <div id="stageDescription"></div>
             </div>
           </div>
 
@@ -552,6 +579,59 @@
     let weatherData = null;
     let forecastData = null;
     let farmLocation = null; // { lat, lng }
+
+    // Growth stage definitions
+    const growthStages = {
+      corn: [
+        { code: 'VE', name: 'VE - Emergence', description: 'Coleoptile visible above soil surface' },
+        { code: 'V1', name: 'V1 - First Leaf', description: 'First leaf collar visible' },
+        { code: 'V2', name: 'V2 - Second Leaf', description: 'Second leaf collar visible' },
+        { code: 'V3', name: 'V3 - Third Leaf', description: 'Third leaf collar visible' },
+        { code: 'V4', name: 'V4 - Fourth Leaf', description: 'Fourth leaf collar visible' },
+        { code: 'V5', name: 'V5 - Fifth Leaf', description: 'Fifth leaf collar visible' },
+        { code: 'V6', name: 'V6 - Sixth Leaf', description: 'Sixth leaf collar visible' },
+        { code: 'V8', name: 'V8 - Eighth Leaf', description: 'Eighth leaf collar visible' },
+        { code: 'V10', name: 'V10 - Tenth Leaf', description: 'Tenth leaf collar visible' },
+        { code: 'V12', name: 'V12 - Twelfth Leaf', description: 'Twelfth leaf collar visible' },
+        { code: 'V14', name: 'V14 - Fourteenth Leaf', description: 'Fourteenth leaf collar visible' },
+        { code: 'VT', name: 'VT - Tasseling', description: 'Tassel fully emerged' },
+        { code: 'R1', name: 'R1 - Silking', description: 'Silks visible outside husks' },
+        { code: 'R2', name: 'R2 - Blister', description: 'Kernels white/clear, blister stage' },
+        { code: 'R3', name: 'R3 - Milk', description: 'Kernels yellow, milky fluid' },
+        { code: 'R4', name: 'R4 - Dough', description: 'Kernels paste-like, dough stage' },
+        { code: 'R5', name: 'R5 - Dent', description: 'Kernel dent forms' },
+        { code: 'R6', name: 'R6 - Physiological Maturity', description: 'Black layer formed, ready for harvest' }
+      ],
+      soybeans: [
+        { code: 'VE', name: 'VE - Emergence', description: 'Cotyledons above soil surface' },
+        { code: 'VC', name: 'VC - Cotyledon', description: 'Unifoliate leaves unrolled' },
+        { code: 'V1', name: 'V1 - First Node', description: 'First trifoliate leaf fully developed' },
+        { code: 'V2', name: 'V2 - Second Node', description: 'Two nodes with fully developed leaves' },
+        { code: 'V3', name: 'V3 - Third Node', description: 'Three nodes with fully developed leaves' },
+        { code: 'V4', name: 'V4 - Fourth Node', description: 'Four nodes with fully developed leaves' },
+        { code: 'V5', name: 'V5 - Fifth Node', description: 'Five nodes with fully developed leaves' },
+        { code: 'V6', name: 'V6 - Sixth Node', description: 'Six nodes with fully developed leaves' },
+        { code: 'R1', name: 'R1 - Beginning Flowering', description: 'One open flower at any node' },
+        { code: 'R2', name: 'R2 - Full Flowering', description: 'Open flower at one of two uppermost nodes' },
+        { code: 'R3', name: 'R3 - Beginning Pod', description: 'Pod 3/16 inch long at one of four uppermost nodes' },
+        { code: 'R4', name: 'R4 - Full Pod', description: 'Pod 3/4 inch at one of four uppermost nodes' },
+        { code: 'R5', name: 'R5 - Beginning Seed', description: 'Seed 1/8 inch at one of four uppermost nodes' },
+        { code: 'R6', name: 'R6 - Full Seed', description: 'Pod with full-size green seed' },
+        { code: 'R7', name: 'R7 - Beginning Maturity', description: 'One normal pod has reached mature color' },
+        { code: 'R8', name: 'R8 - Full Maturity', description: '95% of pods at mature color, ready for harvest' }
+      ],
+      wheat: [
+        { code: 'GE', name: 'Germination/Emergence', description: 'Seed germinating, coleoptile emerging' },
+        { code: 'T', name: 'Tillering', description: 'Tillers forming from main stem' },
+        { code: 'J', name: 'Jointing', description: 'First node visible above soil' },
+        { code: 'B', name: 'Booting', description: 'Flag leaf sheath swollen' },
+        { code: 'H', name: 'Heading', description: 'Head emergence from boot' },
+        { code: 'FL', name: 'Flowering/Anthesis', description: 'Anthers extruded, pollen shedding' },
+        { code: 'MF', name: 'Milk Fill', description: 'Kernel milky white fluid' },
+        { code: 'DF', name: 'Dough Fill', description: 'Kernel soft dough consistency' },
+        { code: 'M', name: 'Mature/Ripening', description: 'Kernel hard, ready for harvest' }
+      ]
+    };
 
     // Activity database
     const activityTypes = [
@@ -687,6 +767,233 @@
 
       // Load weather after dashboard updates
       loadWeather();
+
+      // Generate suggested activities
+      generateActivitySuggestions();
+    }
+
+    // Smart Activity Recommendation Engine
+    function generateActivitySuggestions() {
+      if (fields.length === 0) {
+        document.getElementById('suggestedActivities').style.display = 'none';
+        return;
+      }
+
+      const suggestions = [];
+
+      fields.forEach(field => {
+        const fieldActivities = activityLogs.filter(log => log.field === field.name);
+        const fieldCropObs = cropObservations.filter(obs => obs.fieldId === field.id);
+
+        // Check what's been done
+        const hasPlanting = fieldActivities.some(a => a.activity.toLowerCase().includes('plant'));
+        const hasPreEmerge = fieldActivities.some(a => a.activity.toLowerCase().includes('pre-emergent'));
+        const hasPostEmerge = fieldActivities.some(a => a.activity.toLowerCase().includes('post-emergent'));
+        const hasTillage = fieldActivities.some(a => a.activity.toLowerCase().includes('till') || a.activity.toLowerCase().includes('plow') || a.activity.toLowerCase().includes('disk'));
+        const hasFertilizer = fieldActivities.some(a => a.activity.toLowerCase().includes('fertilizer') || a.activity.toLowerCase().includes('nitrogen'));
+        const hasFungicide = fieldActivities.some(a => a.activity.toLowerCase().includes('fungicide'));
+
+        // Check growth stage
+        const hasEmergence = field.latestGrowthStage && (field.latestGrowthStage.includes('VE') || field.latestGrowthStage.includes('V'));
+        const isVegetative = field.latestGrowthStage && field.latestGrowthStage.startsWith('V') && !field.latestGrowthStage.includes('VE');
+        const isReproductive = field.latestGrowthStage && field.latestGrowthStage.startsWith('R');
+        const isLateVeg = field.latestGrowthStage && (field.latestGrowthStage === 'V8' || field.latestGrowthStage === 'V10' || field.latestGrowthStage === 'V12' || field.latestGrowthStage === 'VT');
+
+        // Check for weed pressure
+        const hasWeedPressure = fieldCropObs.some(obs =>
+          obs.observationType === 'pest' &&
+          obs.pestType &&
+          (obs.pestType.toLowerCase().includes('weed') ||
+           obs.pestType.toLowerCase().includes('foxtail') ||
+           obs.pestType.toLowerCase().includes('pigweed') ||
+           obs.pestType.toLowerCase().includes('thistle'))
+        );
+
+        const cropType = field.currentCrop.toLowerCase();
+
+        // PHASE 1: Pre-Planting Activities
+        if (!hasPlanting) {
+          if (!hasTillage) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Tillage',
+              reason: 'Prepare field for planting',
+              priority: 'high',
+              phase: 'Pre-Planting'
+            });
+          }
+          if (!hasPreEmerge && hasTillage) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Pre-Emergent Herbicide',
+              reason: 'Apply before planting for weed control',
+              priority: 'high',
+              phase: 'Pre-Planting'
+            });
+          }
+          if (!hasFertilizer && hasTillage) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Fertilizer Application',
+              reason: 'Base fertility before planting',
+              priority: 'medium',
+              phase: 'Pre-Planting'
+            });
+          }
+          if (hasTillage) {
+            suggestions.push({
+              field: field.name,
+              activity: `${cropType.includes('corn') ? 'Corn' : cropType.includes('soy') ? 'Soybean' : 'Wheat'} Planting`,
+              reason: 'Field is prepared and ready',
+              priority: 'high',
+              phase: 'Planting'
+            });
+          }
+        }
+
+        // PHASE 2: Post-Planting, Pre-Emergence
+        if (hasPlanting && !hasEmergence) {
+          suggestions.push({
+            field: field.name,
+            activity: 'Scout Growth Stage',
+            reason: 'Check for emergence (VE stage)',
+            priority: 'high',
+            phase: 'Early Growth'
+          });
+        }
+
+        // PHASE 3: Post-Emergence
+        if (hasPlanting && hasEmergence) {
+          if (!hasPostEmerge) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Post-Emergent Herbicide',
+              reason: `Emergence confirmed (${field.latestGrowthStageName || 'VE'})`,
+              priority: 'high',
+              phase: 'Early Growth'
+            });
+          }
+
+          // Second post-emerge if weeds detected
+          if (hasPostEmerge && hasWeedPressure) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Second Post-Emergent Application',
+              reason: 'Weed pressure detected in scouting',
+              priority: 'high',
+              phase: 'Mid Growth'
+            });
+          }
+
+          // Nitrogen application (corn specific, mid-vegetative)
+          if (cropType.includes('corn') && isVegetative && !hasFertilizer) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Nitrogen Application',
+              reason: `Corn at ${field.latestGrowthStageName || 'vegetative'} stage`,
+              priority: 'high',
+              phase: 'Mid Growth'
+            });
+          }
+
+          // Fungicide at late vegetative / early reproductive
+          if ((isLateVeg || isReproductive) && !hasFungicide) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Fungicide Application',
+              reason: `Critical growth stage (${field.latestGrowthStageName || 'late vegetative'})`,
+              priority: 'medium',
+              phase: 'Mid-Late Growth'
+            });
+          }
+
+          // Scout growth stage regularly
+          if (isVegetative) {
+            suggestions.push({
+              field: field.name,
+              activity: 'Scout Growth Stage',
+              reason: 'Monitor crop development',
+              priority: 'low',
+              phase: 'Ongoing'
+            });
+          }
+
+          // Harvest recommendation
+          if (isReproductive && (field.latestGrowthStage === 'R6' || field.latestGrowthStage === 'R8' || field.latestGrowthStage === 'M')) {
+            suggestions.push({
+              field: field.name,
+              activity: `${cropType.includes('corn') ? 'Corn' : cropType.includes('soy') ? 'Soybean' : 'Wheat'} Harvest`,
+              reason: `Crop is mature (${field.latestGrowthStageName})`,
+              priority: 'high',
+              phase: 'Harvest'
+            });
+          }
+        }
+      });
+
+      // Display suggestions
+      if (suggestions.length === 0) {
+        document.getElementById('suggestedActivities').innerHTML = `
+          <div style="text-align: center; padding: 20px; color: #999;">
+            <div style="font-size: 18px; margin-bottom: 10px;">✅ All caught up!</div>
+            <div>No suggested activities at this time.</div>
+          </div>
+        `;
+        return;
+      }
+
+      // Group by priority
+      const highPriority = suggestions.filter(s => s.priority === 'high');
+      const mediumPriority = suggestions.filter(s => s.priority === 'medium');
+      const lowPriority = suggestions.filter(s => s.priority === 'low');
+
+      let html = '<h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">🎯 Suggested Activities</h2>';
+
+      if (highPriority.length > 0) {
+        html += '<h3 style="font-size: 18px; color: #f44336; margin-bottom: 15px;">⚠️ High Priority</h3>';
+        html += highPriority.map(s => `
+          <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #f44336;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 16px; color: #333;">${s.field}</div>
+                <div style="font-size: 18px; font-weight: 600; color: #f44336; margin: 5px 0;">${s.activity}</div>
+                <div style="font-size: 14px; color: #666;">${s.reason}</div>
+                <div style="font-size: 12px; color: #999; margin-top: 5px;">Phase: ${s.phase}</div>
+              </div>
+              <button class="btn" onclick="showScreen('log')" style="padding: 8px 16px; font-size: 14px;">Log Activity</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      if (mediumPriority.length > 0) {
+        html += '<h3 style="font-size: 18px; color: #FF9800; margin: 20px 0 15px;">📋 Medium Priority</h3>';
+        html += mediumPriority.map(s => `
+          <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin-bottom: 12px; border-left: 4px solid #FF9800;">
+            <div style="display: flex; justify-content: space-between; align-items: start;">
+              <div style="flex: 1;">
+                <div style="font-weight: 600; font-size: 16px; color: #333;">${s.field}</div>
+                <div style="font-size: 16px; font-weight: 600; color: #FF9800; margin: 5px 0;">${s.activity}</div>
+                <div style="font-size: 14px; color: #666;">${s.reason}</div>
+                <div style="font-size: 12px; color: #999; margin-top: 5px;">Phase: ${s.phase}</div>
+              </div>
+              <button class="btn btn-secondary" onclick="showScreen('log')" style="padding: 8px 16px; font-size: 14px;">Log Activity</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      if (lowPriority.length > 0 && lowPriority.length <= 3) {
+        html += '<h3 style="font-size: 18px; color: #4CAF50; margin: 20px 0 15px;">✓ Routine Tasks</h3>';
+        html += lowPriority.map(s => `
+          <div style="background: #f1f8f4; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #4CAF50;">
+            <div style="font-weight: 600; font-size: 14px; color: #333;">${s.field}: ${s.activity}</div>
+            <div style="font-size: 13px; color: #666;">${s.reason}</div>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('suggestedActivities').innerHTML = html;
     }
 
     // Weather Functions
@@ -1009,6 +1316,7 @@
           saveLocation(location);
           updateCurrentLocationDisplay();
           fetchWeatherData();
+          closeLocationSettings();
           alert('Location saved! Weather will update shortly.');
         },
         (error) => {
@@ -1039,6 +1347,7 @@
       saveLocation(location);
       updateCurrentLocationDisplay();
       fetchWeatherData();
+      closeLocationSettings();
       alert('Location saved! Weather will update shortly.');
     }
 
@@ -2018,7 +2327,54 @@
     function updateObservationFields() {
       const type = document.getElementById('observationType').value;
       document.getElementById('pestFields').classList.toggle('hidden', type !== 'pest');
+      document.getElementById('growthFields').classList.toggle('hidden', type !== 'growth');
       document.getElementById('standFields').classList.toggle('hidden', type !== 'stand');
+
+      // Auto-detect crop type for growth stage if field is planted
+      if (type === 'growth' && currentScoutingField) {
+        const fieldCrop = currentScoutingField.currentCrop.toLowerCase();
+        const cropSelect = document.getElementById('growthCropType');
+
+        if (fieldCrop.includes('corn')) {
+          cropSelect.value = 'corn';
+          updateGrowthStages();
+        } else if (fieldCrop.includes('soy')) {
+          cropSelect.value = 'soybeans';
+          updateGrowthStages();
+        } else if (fieldCrop.includes('wheat')) {
+          cropSelect.value = 'wheat';
+          updateGrowthStages();
+        }
+      }
+    }
+
+    function updateGrowthStages() {
+      const cropType = document.getElementById('growthCropType').value;
+      const stageSelect = document.getElementById('growthStage');
+
+      if (!cropType) {
+        stageSelect.innerHTML = '<option value="">Select crop first...</option>';
+        document.getElementById('growthStageInfo').style.display = 'none';
+        return;
+      }
+
+      const stages = growthStages[cropType] || [];
+      stageSelect.innerHTML = '<option value="">Select stage...</option>' +
+        stages.map(stage => `<option value="${stage.code}">${stage.name}</option>`).join('');
+
+      // Show description when stage is selected
+      stageSelect.onchange = function() {
+        const selectedCode = this.value;
+        if (selectedCode) {
+          const stage = stages.find(s => s.code === selectedCode);
+          if (stage) {
+            document.getElementById('stageDescription').innerHTML = `<strong>${stage.name}:</strong> ${stage.description}`;
+            document.getElementById('growthStageInfo').style.display = 'block';
+          }
+        } else {
+          document.getElementById('growthStageInfo').style.display = 'none';
+        }
+      };
     }
 
     function calculateYield() {
@@ -2084,6 +2440,8 @@
       document.getElementById('observationType').value = 'pest';
       document.getElementById('pestType').value = '';
       document.getElementById('pestSeverity').value = '3';
+      document.getElementById('growthCropType').value = '';
+      document.getElementById('growthStage').value = '';
       document.getElementById('cropPhoto').value = '';
       document.getElementById('cropNotes').value = '';
       document.getElementById('rowLength').value = '';
@@ -2119,6 +2477,34 @@
 
         observationData.pestType = pestType;
         observationData.severity = severity;
+      } else if (observationType === 'growth') {
+        const cropType = document.getElementById('growthCropType').value;
+        const growthStage = document.getElementById('growthStage').value;
+
+        if (!cropType || !growthStage) {
+          alert('Please select crop type and growth stage');
+          return;
+        }
+
+        observationData.cropType = cropType;
+        observationData.growthStage = growthStage;
+
+        const stages = growthStages[cropType] || [];
+        const stageInfo = stages.find(s => s.code === growthStage);
+        if (stageInfo) {
+          observationData.growthStageName = stageInfo.name;
+          observationData.growthStageDescription = stageInfo.description;
+        }
+
+        // Update field's current growth stage
+        if (currentScoutingField) {
+          const field = fields.find(f => f.id === currentScoutingField.id);
+          if (field) {
+            field.latestGrowthStage = growthStage;
+            field.latestGrowthStageName = stageInfo ? stageInfo.name : growthStage;
+            saveData();
+          }
+        }
       } else if (observationType === 'stand') {
         const rowLength = parseFloat(document.getElementById('rowLength').value);
         const plantCount = parseFloat(document.getElementById('plantCount').value);
