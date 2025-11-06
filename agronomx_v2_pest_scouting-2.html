@@ -101,6 +101,57 @@
         <div class="stat-label">🌤️ Local Weather</div>
         <h3 id="weatherTemp">--°F</h3>
         <p id="weatherCondition">Loading weather...</p>
+        <button onclick="showLocationSettings()" style="margin-top: 10px; padding: 6px 12px; background: rgba(255,255,255,0.2); border: 1px solid white; border-radius: 6px; color: white; cursor: pointer; font-size: 12px; font-family: 'Exo 2', sans-serif;">📍 Set Location</button>
+      </div>
+    </div>
+
+    <!-- Location Settings Modal -->
+    <div id="locationModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+      <div style="background: white; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
+        <h2 style="margin-bottom: 20px; font-size: 24px; font-weight: 600;">Set Weather Location</h2>
+
+        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <div style="font-size: 14px; color: #1976D2; margin-bottom: 8px;">
+            <strong>Current Location:</strong>
+          </div>
+          <div id="currentLocationDisplay" style="font-size: 14px; color: #333;">
+            Loading...
+          </div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 16px; margin-bottom: 10px;">Option 1: Use Browser Location</h3>
+          <button class="btn btn-secondary" onclick="requestBrowserLocation()" style="width: 100%;">
+            📍 Request Browser Permission
+          </button>
+          <p style="font-size: 12px; color: #666; margin-top: 5px;">Most accurate - uses your device GPS</p>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 16px; margin-bottom: 10px;">Option 2: Enter Coordinates</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Latitude</label>
+              <input type="number" id="manualLat" placeholder="41.878" step="0.0001" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+            </div>
+            <div class="form-group" style="margin-bottom: 0;">
+              <label>Longitude</label>
+              <input type="number" id="manualLng" placeholder="-93.098" step="0.0001" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+            </div>
+          </div>
+          <button class="btn" onclick="setManualLocation()" style="width: 100%; margin-top: 10px;">
+            Save Coordinates
+          </button>
+          <p style="font-size: 12px; color: #666; margin-top: 5px;">
+            Find coordinates on <a href="https://www.google.com/maps" target="_blank" style="color: #2196F3;">Google Maps</a> (right-click → coordinates)
+          </p>
+        </div>
+
+        <div style="border-top: 1px solid #ddd; padding-top: 15px; margin-top: 20px;">
+          <button class="btn btn-danger" onclick="closeLocationSettings()" style="width: 100%;">
+            Close
+          </button>
+        </div>
       </div>
     </div>
 
@@ -525,6 +576,12 @@
         activityLogs = data.activityLogs || [];
         cropObservations = data.cropObservations || data.pestObservations || []; // Support old data
       }
+
+      // Load saved location
+      const savedLocation = localStorage.getItem('agronomx_location');
+      if (savedLocation) {
+        farmLocation = JSON.parse(savedLocation);
+      }
     }
 
     // Save data to localStorage
@@ -536,6 +593,12 @@
         cropObservations: cropObservations
       };
       localStorage.setItem('agronomx_data', JSON.stringify(data));
+    }
+
+    // Save location to localStorage
+    function saveLocation(location) {
+      farmLocation = location;
+      localStorage.setItem('agronomx_location', JSON.stringify(location));
     }
 
     function login() {
@@ -628,25 +691,24 @@
 
     // Weather Functions
     async function loadWeather() {
-      // Get farm location from first field or browser geolocation
+      // Priority 1: Check for saved location
+      if (farmLocation) {
+        fetchWeatherData();
+        return;
+      }
+
+      // Priority 2: Get from first field coordinates
       if (fields.length > 0 && fields[0].coordinates && fields[0].coordinates.length > 0) {
         const coords = fields[0].coordinates[0];
         farmLocation = { lat: coords[1], lng: coords[0] };
-      } else if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
-          farmLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
-          fetchWeatherData();
-        }, () => {
-          // Default to central Iowa
-          farmLocation = { lat: 41.878, lng: -93.098 };
-          fetchWeatherData();
-        });
+        fetchWeatherData();
         return;
-      } else {
-        // Default to central Iowa
-        farmLocation = { lat: 41.878, lng: -93.098 };
       }
 
+      // Priority 3: Try browser geolocation (silent - no prompt on first load)
+      // User can explicitly grant permission via the "Set Location" button
+      // For now, just use default location
+      farmLocation = { lat: 41.878, lng: -93.098 };
       fetchWeatherData();
     }
 
@@ -890,6 +952,94 @@
       document.getElementById('forecastContainer').innerHTML = '<div>Loading...</div>';
 
       fetchWeatherData();
+    }
+
+    // Location Settings Functions
+    function showLocationSettings() {
+      document.getElementById('locationModal').classList.remove('hidden');
+      updateCurrentLocationDisplay();
+
+      // Pre-fill manual inputs if location exists
+      if (farmLocation) {
+        document.getElementById('manualLat').value = farmLocation.lat.toFixed(4);
+        document.getElementById('manualLng').value = farmLocation.lng.toFixed(4);
+      }
+    }
+
+    function closeLocationSettings() {
+      document.getElementById('locationModal').classList.add('hidden');
+    }
+
+    function updateCurrentLocationDisplay() {
+      if (!farmLocation) {
+        document.getElementById('currentLocationDisplay').innerHTML = 'No location set yet';
+        return;
+      }
+
+      let source = 'Unknown';
+      if (localStorage.getItem('agronomx_location')) {
+        source = 'Manually set';
+      } else if (fields.length > 0 && fields[0].coordinates) {
+        source = 'From first field';
+      } else {
+        source = 'Browser/Default';
+      }
+
+      document.getElementById('currentLocationDisplay').innerHTML = `
+        <div><strong>Latitude:</strong> ${farmLocation.lat.toFixed(4)}</div>
+        <div><strong>Longitude:</strong> ${farmLocation.lng.toFixed(4)}</div>
+        <div style="font-size: 12px; color: #666; margin-top: 5px;">Source: ${source}</div>
+      `;
+    }
+
+    function requestBrowserLocation() {
+      if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser');
+        return;
+      }
+
+      document.getElementById('currentLocationDisplay').innerHTML = 'Requesting permission...';
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const location = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          saveLocation(location);
+          updateCurrentLocationDisplay();
+          fetchWeatherData();
+          alert('Location saved! Weather will update shortly.');
+        },
+        (error) => {
+          let message = 'Unable to get location. ';
+          if (error.code === 1) {
+            message += 'Permission denied. Please allow location access in your browser settings.';
+          } else if (error.code === 2) {
+            message += 'Position unavailable.';
+          } else if (error.code === 3) {
+            message += 'Request timeout.';
+          }
+          alert(message);
+          updateCurrentLocationDisplay();
+        }
+      );
+    }
+
+    function setManualLocation() {
+      const lat = parseFloat(document.getElementById('manualLat').value);
+      const lng = parseFloat(document.getElementById('manualLng').value);
+
+      if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+        alert('Please enter valid coordinates.\nLatitude: -90 to 90\nLongitude: -180 to 180');
+        return;
+      }
+
+      const location = { lat, lng };
+      saveLocation(location);
+      updateCurrentLocationDisplay();
+      fetchWeatherData();
+      alert('Location saved! Weather will update shortly.');
     }
 
     // Map functions
