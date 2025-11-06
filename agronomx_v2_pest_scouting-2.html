@@ -108,7 +108,7 @@
     <div class="action-grid">
       <button class="btn action-btn" onclick="showScreen('log')">📝 Log Activity</button>
       <button class="btn btn-secondary action-btn" onclick="showScreen('fields')">🌾 Manage Fields</button>
-      <button class="btn action-btn" style="background: #FF5722;" onclick="showScreen('scouting')">🐛 Pest Scouting</button>
+      <button class="btn action-btn" style="background: #FF5722;" onclick="showScreen('scouting')">🌿 Crop Scouting</button>
       <button class="btn action-btn" style="background: #FF9800;" onclick="showScreen('inventory')">📦 Manage Inventory</button>
       <button class="btn action-btn" style="background: #9C27B0;" onclick="showScreen('insights')">📈 View Insights</button>
     </div>
@@ -118,9 +118,9 @@
       <p style="text-align: center; color: #999; padding: 20px;">No activities logged yet. Click "Log Activity" to get started!</p>
     </div>
 
-    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Pest Scouting History</h2>
-    <div id="pestHistory" class="card">
-      <p style="text-align: center; color: #999; padding: 20px;">No pest scouting yet. Click "Pest Scouting" to start monitoring!</p>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Crop Scouting History</h2>
+    <div id="cropHistory" class="card">
+      <p style="text-align: center; color: #999; padding: 20px;">No crop scouting yet. Click "Crop Scouting" to start monitoring!</p>
     </div>
   </div>
 
@@ -284,10 +284,10 @@
     <div id="inventoryList"></div>
   </div>
 
-  <!-- Pest Scouting Screen -->
+  <!-- Crop Scouting Screen -->
   <div id="scoutingScreen" class="container hidden">
     <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
-    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">Pest Scouting</h2>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">Crop Scouting</h2>
     
     <!-- Field Selection -->
     <div id="scoutingFieldSelect" class="card" style="max-width: 600px;">
@@ -319,13 +319,23 @@
           <button id="completePestBtn" class="btn hidden" onclick="completePestMarking()" style="background: #4CAF50;">✓ Complete</button>
         </div>
 
-        <!-- Active Pest Log Form -->
-        <div id="pestLogForm" class="hidden" style="position: absolute; top: 10px; right: 10px; z-index: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 300px;">
-          <h4 style="margin-bottom: 15px;">Log Pest Observation</h4>
-          
+        <!-- Active Crop Log Form -->
+        <div id="cropLogForm" class="hidden" style="position: absolute; top: 10px; right: 10px; z-index: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 320px; max-height: 80vh; overflow-y: auto;">
+          <h4 style="margin-bottom: 15px;">Log Crop Observation</h4>
+
           <div class="form-group">
-            <label>Pest Type</label>
-            <input type="text" id="pestType" placeholder="e.g., Japanese Beetle" list="commonPests">
+            <label>Observation Type</label>
+            <select id="observationType" onchange="updateObservationFields()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+              <option value="pest">Pest Observation</option>
+              <option value="stand">Stand Count</option>
+              <option value="general">General Observation</option>
+            </select>
+          </div>
+
+          <div id="pestFields">
+            <div class="form-group">
+              <label>Pest Type</label>
+              <input type="text" id="pestType" placeholder="e.g., Japanese Beetle" list="commonPests">
             <datalist id="commonPests">
               <option value="Japanese Beetle">
               <option value="Corn Rootworm">
@@ -340,35 +350,81 @@
             </datalist>
           </div>
 
-          <div class="form-group">
-            <label>Severity</label>
-            <input type="range" id="pestSeverity" min="1" max="5" value="3" oninput="updateSeverityLabel(this.value)" style="width: 100%;">
-            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
-              <span>Low</span>
-              <span id="severityLabel" style="font-weight: 600; color: #FF9800;">Medium</span>
-              <span>High</span>
+            <div class="form-group">
+              <label>Severity</label>
+              <input type="range" id="pestSeverity" min="1" max="5" value="3" oninput="updateSeverityLabel(this.value)" style="width: 100%;">
+              <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
+                <span>Low</span>
+                <span id="severityLabel" style="font-weight: 600; color: #FF9800;">Medium</span>
+                <span>High</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="standFields" class="hidden">
+            <div class="form-group">
+              <label>Row Length (feet)</label>
+              <input type="number" id="rowLength" placeholder="e.g., 17.5" step="0.1" oninput="calculateYield()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+            </div>
+
+            <div class="form-group">
+              <label>Row Spacing (inches)</label>
+              <select id="rowSpacing" onchange="calculateYield()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                <option value="30">30 inches</option>
+                <option value="20">20 inches</option>
+                <option value="15">15 inches</option>
+                <option value="7.5">7.5 inches</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Plant Count</label>
+              <input type="number" id="plantCount" placeholder="Count plants in row" oninput="calculateYield()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+            </div>
+
+            <div class="form-group">
+              <label>Expected Ears per Plant (corn only)</label>
+              <input type="number" id="earsPerPlant" value="1" step="0.1" oninput="calculateYield()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+            </div>
+
+            <div class="form-group">
+              <label>Kernel Rows per Ear (corn only)</label>
+              <input type="number" id="kernelRows" value="16" oninput="calculateYield()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+            </div>
+
+            <div class="form-group">
+              <label>Kernels per Row (corn only)</label>
+              <input type="number" id="kernelsPerRow" value="30" oninput="calculateYield()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+            </div>
+
+            <div id="yieldPrediction" style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0; display: none;">
+              <h4 style="margin-bottom: 10px; color: #2e7d32;">Yield Prediction</h4>
+              <div style="font-size: 14px; line-height: 1.6;">
+                <div><strong>Plants per Acre:</strong> <span id="plantsPerAcre">-</span></div>
+                <div><strong>Estimated Yield:</strong> <span id="estimatedYield" style="font-size: 18px; color: #2e7d32; font-weight: 700;">-</span></div>
+              </div>
             </div>
           </div>
 
           <div class="form-group">
             <label>Photo (Optional)</label>
-            <input type="file" id="pestPhoto" accept="image/*" capture="environment" style="font-size: 14px; padding: 8px;">
+            <input type="file" id="cropPhoto" accept="image/*" capture="environment" style="font-size: 14px; padding: 8px;">
           </div>
 
           <div class="form-group">
             <label>Notes (Optional)</label>
-            <textarea id="pestNotes" rows="3" placeholder="Additional observations..." style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-family: 'Exo 2', sans-serif;"></textarea>
+            <textarea id="cropNotes" rows="3" placeholder="Additional observations..." style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-family: 'Exo 2', sans-serif;"></textarea>
           </div>
 
-          <button class="btn" onclick="savePestObservation()" style="width: 100%; margin-bottom: 10px;">Save Observation</button>
-          <button class="btn btn-danger" onclick="cancelPestLog()" style="width: 100%;">Cancel</button>
+          <button class="btn" onclick="saveCropObservation()" style="width: 100%; margin-bottom: 10px;">Save Observation</button>
+          <button class="btn btn-danger" onclick="cancelCropLog()" style="width: 100%;">Cancel</button>
         </div>
       </div>
 
-      <!-- Pest Observations List -->
-      <div id="fieldPestList" style="margin-top: 20px;">
+      <!-- Crop Observations List -->
+      <div id="fieldCropList" style="margin-top: 20px;">
         <h4 style="margin-bottom: 10px;">Recent Observations</h4>
-        <div id="pestObservationsList"></div>
+        <div id="cropObservationsList"></div>
       </div>
     </div>
   </div>
@@ -395,14 +451,14 @@
     let polygonLayer = null;
     let markersLayer = [];
 
-    // Pest scouting variables
+    // Crop scouting variables
     let scoutingMap = null;
     let currentScoutingField = null;
-    let pestObservations = [];
+    let cropObservations = [];
     let scoutingMode = null; // 'pin', 'zone', or 'field'
     let zonePoints = [];
     let zoneMarkers = [];
-    let tempPestLocation = null;
+    let tempCropLocation = null;
     let heatMapVisible = false;
     let tempPins = []; // Track multiple pins in pin mode
     let tempPinMarkers = []; // Visual markers for pins
@@ -428,7 +484,7 @@
         fields = data.fields || [];
         inventory = data.inventory || [];
         activityLogs = data.activityLogs || [];
-        pestObservations = data.pestObservations || [];
+        cropObservations = data.cropObservations || data.pestObservations || []; // Support old data
       }
     }
 
@@ -438,7 +494,7 @@
         fields: fields,
         inventory: inventory,
         activityLogs: activityLogs,
-        pestObservations: pestObservations
+        cropObservations: cropObservations
       };
       localStorage.setItem('agronomx_data', JSON.stringify(data));
     }
@@ -503,12 +559,12 @@
         `).join('');
       }
 
-      // Pest history
-      const recentPests = pestObservations.slice(-5).reverse();
-      if (recentPests.length === 0) {
-        document.getElementById('pestHistory').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No pest scouting yet</p>';
+      // Crop history
+      const recentCrop = cropObservations.slice(-5).reverse();
+      if (recentCrop.length === 0) {
+        document.getElementById('cropHistory').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No crop scouting yet</p>';
       } else {
-        document.getElementById('pestHistory').innerHTML = recentPests.map(obs => {
+        document.getElementById('cropHistory').innerHTML = recentCrop.map(obs => {
           const severityColor = obs.severity <= 2 ? '#4CAF50' : obs.severity <= 3 ? '#FF9800' : '#f44336';
           const severityText = obs.severity <= 2 ? 'Low' : obs.severity <= 3 ? 'Medium' : 'High';
           return `
@@ -1215,7 +1271,7 @@
       document.getElementById('scoutingFieldName').textContent = currentScoutingField.name;
 
       initScoutingMap();
-      renderFieldPestObservations();
+      renderFieldCropObservations();
     }
 
     function initScoutingMap() {
@@ -1295,8 +1351,8 @@
           // Map will stay at the center zoom level
         }
 
-        // Load existing pest markers
-        loadPestMarkers();
+        // Load existing crop markers
+        loadCropMarkers();
       });
       } catch (error) {
         console.error('Error initializing scouting map:', error);
@@ -1436,16 +1492,26 @@
           'type': 'fill',
           'source': 'zone-preview',
           'paint': {
-            'fill-color': '#FF5722',
+            'fill-color': '#FF9800',
             'fill-opacity': 0.3
+          }
+        });
+
+        scoutingMap.addLayer({
+          'id': 'zone-preview-outline',
+          'type': 'line',
+          'source': 'zone-preview',
+          'paint': {
+            'line-color': '#FF5722',
+            'line-width': 3
           }
         });
       }
     }
 
     function markWholeField() {
-      tempPestLocation = { type: 'field', coordinates: currentScoutingField.coordinates };
-      showPestLogForm();
+      tempCropLocation = { type: 'field', coordinates: currentScoutingField.coordinates };
+      showCropLogForm();
     }
 
     function updateScoutingButtons() {
@@ -1457,7 +1523,7 @@
       const hasPoints = (scoutingMode === 'pin' && tempPins.length > 0) ||
                        (scoutingMode === 'zone' && zonePoints.length > 0);
       const canComplete = (scoutingMode === 'pin' && tempPins.length > 0) ||
-                         (scoutingMode === 'zone' && zonePoints.length >= 3);
+                         (scoutingMode === 'zone' && zonePoints.length >= 2); // Allow polygon with 2+ points
 
       document.getElementById('undoPestBtn').classList.toggle('hidden', !hasPoints);
       document.getElementById('completePestBtn').classList.toggle('hidden', !canComplete);
@@ -1482,13 +1548,46 @@
     function completePestMarking() {
       if (scoutingMode === 'pin' && tempPins.length > 0) {
         // Save pins as multiple observations or single multi-pin observation
-        tempPestLocation = { type: 'pins', coordinates: [...tempPins] };
-        showPestLogForm();
-      } else if (scoutingMode === 'zone' && zonePoints.length >= 3) {
-        // Save zone
-        tempPestLocation = { type: 'zone', coordinates: [...zonePoints] };
-        showPestLogForm();
+        tempCropLocation = { type: 'pins', coordinates: [...tempPins] };
+        showCropLogForm();
+      } else if (scoutingMode === 'zone' && zonePoints.length >= 2) {
+        // Save zone (allow 2+ points for polygon)
+        tempCropLocation = { type: 'zone', coordinates: [...zonePoints] };
+        showCropLogForm();
       }
+    }
+
+    function updateObservationFields() {
+      const type = document.getElementById('observationType').value;
+      document.getElementById('pestFields').classList.toggle('hidden', type !== 'pest');
+      document.getElementById('standFields').classList.toggle('hidden', type !== 'stand');
+    }
+
+    function calculateYield() {
+      const rowLength = parseFloat(document.getElementById('rowLength').value);
+      const rowSpacing = parseFloat(document.getElementById('rowSpacing').value);
+      const plantCount = parseFloat(document.getElementById('plantCount').value);
+      const earsPerPlant = parseFloat(document.getElementById('earsPerPlant').value) || 1;
+      const kernelRows = parseFloat(document.getElementById('kernelRows').value) || 16;
+      const kernelsPerRow = parseFloat(document.getElementById('kernelsPerRow').value) || 30;
+
+      if (!rowLength || !rowSpacing || !plantCount) {
+        document.getElementById('yieldPrediction').style.display = 'none';
+        return;
+      }
+
+      // Calculate plants per acre
+      const rowsPerAcre = (43560 / (rowSpacing / 12)) / rowLength; // 43560 sq ft per acre
+      const plantsPerAcre = Math.round(plantCount * rowsPerAcre);
+
+      // Calculate yield (for corn)
+      // Formula: (Plants/acre × Ears/plant × Kernel rows × Kernels/row) / 90,000 = Bushels/acre
+      const kernelsPerAcre = plantsPerAcre * earsPerPlant * kernelRows * kernelsPerRow;
+      const estimatedYield = Math.round(kernelsPerAcre / 90);
+
+      document.getElementById('plantsPerAcre').textContent = plantsPerAcre.toLocaleString();
+      document.getElementById('estimatedYield').textContent = estimatedYield.toLocaleString() + ' bu/ac';
+      document.getElementById('yieldPrediction').style.display = 'block';
     }
 
     function clearTempMarkers() {
@@ -1503,6 +1602,9 @@
       zonePoints = [];
 
       // Clear zone preview
+      if (scoutingMap && scoutingMap.getLayer('zone-preview-outline')) {
+        scoutingMap.removeLayer('zone-preview-outline');
+      }
       if (scoutingMap && scoutingMap.getLayer('zone-preview')) {
         scoutingMap.removeLayer('zone-preview');
       }
@@ -1513,18 +1615,22 @@
       updatePestControlButtons();
     }
 
-    function showPestLogForm() {
-      document.getElementById('pestLogForm').classList.remove('hidden');
+    function showCropLogForm() {
+      document.getElementById('cropLogForm').classList.remove('hidden');
       scoutingMap.getCanvas().style.cursor = '';
+      updateObservationFields(); // Initialize field visibility
     }
 
-    function cancelPestLog() {
-      document.getElementById('pestLogForm').classList.add('hidden');
+    function cancelCropLog() {
+      document.getElementById('cropLogForm').classList.add('hidden');
+      document.getElementById('observationType').value = 'pest';
       document.getElementById('pestType').value = '';
       document.getElementById('pestSeverity').value = '3';
-      document.getElementById('pestPhoto').value = '';
-      document.getElementById('pestNotes').value = '';
-      tempPestLocation = null;
+      document.getElementById('cropPhoto').value = '';
+      document.getElementById('cropNotes').value = '';
+      document.getElementById('rowLength').value = '';
+      document.getElementById('plantCount').value = '';
+      tempCropLocation = null;
       scoutingMode = null;
       updateScoutingButtons();
       clearTempMarkers();
@@ -1537,19 +1643,45 @@
       document.getElementById('severityLabel').style.color = colors[value];
     }
 
-    function savePestObservation() {
-      const pestType = document.getElementById('pestType').value;
-      const severity = parseInt(document.getElementById('pestSeverity').value);
-      const notes = document.getElementById('pestNotes').value;
-      const photoInput = document.getElementById('pestPhoto');
+    function saveCropObservation() {
+      const observationType = document.getElementById('observationType').value;
+      const notes = document.getElementById('cropNotes').value;
+      const photoInput = document.getElementById('cropPhoto');
 
-      if (!pestType) {
-        alert('Please enter a pest type');
-        return;
+      let observationData = { observationType };
+
+      if (observationType === 'pest') {
+        const pestType = document.getElementById('pestType').value;
+        const severity = parseInt(document.getElementById('pestSeverity').value);
+
+        if (!pestType) {
+          alert('Please enter a pest type');
+          return;
+        }
+
+        observationData.pestType = pestType;
+        observationData.severity = severity;
+      } else if (observationType === 'stand') {
+        const rowLength = parseFloat(document.getElementById('rowLength').value);
+        const plantCount = parseFloat(document.getElementById('plantCount').value);
+
+        if (!rowLength || !plantCount) {
+          alert('Please enter row length and plant count');
+          return;
+        }
+
+        observationData.rowLength = rowLength;
+        observationData.rowSpacing = parseFloat(document.getElementById('rowSpacing').value);
+        observationData.plantCount = plantCount;
+        observationData.earsPerPlant = parseFloat(document.getElementById('earsPerPlant').value);
+        observationData.kernelRows = parseFloat(document.getElementById('kernelRows').value);
+        observationData.kernelsPerRow = parseFloat(document.getElementById('kernelsPerRow').value);
+        observationData.plantsPerAcre = document.getElementById('plantsPerAcre').textContent;
+        observationData.estimatedYield = document.getElementById('estimatedYield').textContent;
       }
 
       // Handle multiple pins - create separate observation for each pin
-      if (tempPestLocation.type === 'pins') {
+      if (tempCropLocation.type === 'pins') {
         const timestamp = new Date().toISOString();
         const baseId = Date.now();
 
@@ -1557,37 +1689,35 @@
           const reader = new FileReader();
           reader.onload = function(e) {
             const photoData = e.target.result;
-            tempPestLocation.coordinates.forEach((pinCoords, index) => {
-              pestObservations.push({
+            tempCropLocation.coordinates.forEach((pinCoords, index) => {
+              cropObservations.push({
                 id: baseId + index,
                 fieldId: currentScoutingField.id,
                 fieldName: currentScoutingField.name,
-                pestType: pestType,
-                severity: severity,
+                ...observationData,
                 notes: notes,
                 location: { type: 'pin', coordinates: pinCoords },
                 timestamp: timestamp,
                 photo: photoData
               });
             });
-            finalizePestObservation();
+            finalizeCropObservation();
           };
           reader.readAsDataURL(photoInput.files[0]);
         } else {
-          tempPestLocation.coordinates.forEach((pinCoords, index) => {
-            pestObservations.push({
+          tempCropLocation.coordinates.forEach((pinCoords, index) => {
+            cropObservations.push({
               id: baseId + index,
               fieldId: currentScoutingField.id,
               fieldName: currentScoutingField.name,
-              pestType: pestType,
-              severity: severity,
+              ...observationData,
               notes: notes,
               location: { type: 'pin', coordinates: pinCoords },
               timestamp: timestamp,
               photo: null
             });
           });
-          finalizePestObservation();
+          finalizeCropObservation();
         }
       } else {
         // Single observation (zone or whole field)
@@ -1595,10 +1725,9 @@
           id: Date.now(),
           fieldId: currentScoutingField.id,
           fieldName: currentScoutingField.name,
-          pestType: pestType,
-          severity: severity,
+          ...observationData,
           notes: notes,
-          location: tempPestLocation,
+          location: tempCropLocation,
           timestamp: new Date().toISOString(),
           photo: null
         };
@@ -1608,37 +1737,37 @@
           const reader = new FileReader();
           reader.onload = function(e) {
             observation.photo = e.target.result;
-            pestObservations.push(observation);
-            finalizePestObservation();
+            cropObservations.push(observation);
+            finalizeCropObservation();
           };
           reader.readAsDataURL(photoInput.files[0]);
         } else {
-          pestObservations.push(observation);
-          finalizePestObservation();
+          cropObservations.push(observation);
+          finalizeCropObservation();
         }
       }
     }
 
-    function finalizePestObservation() {
-      const count = tempPestLocation && tempPestLocation.type === 'pins'
-        ? tempPestLocation.coordinates.length
+    function finalizeCropObservation() {
+      const count = tempCropLocation && tempCropLocation.type === 'pins'
+        ? tempCropLocation.coordinates.length
         : 1;
 
       saveData(); // Save to localStorage
       clearTempMarkers(); // Clear temp markers before canceling
-      cancelPestLog();
-      loadPestMarkers();
-      renderFieldPestObservations();
+      cancelCropLog();
+      loadCropMarkers();
+      renderFieldCropObservations();
       updateHeatMap(); // Update heat map with new observation
 
       const message = count > 1
-        ? `${count} pest observations saved!`
-        : 'Pest observation saved!';
+        ? `${count} crop observations saved!`
+        : 'Crop observation saved!';
       alert(message);
     }
 
-    function loadPestMarkers() {
-      const fieldObs = pestObservations.filter(obs => obs.fieldId === currentScoutingField.id);
+    function loadCropMarkers() {
+      const fieldObs = cropObservations.filter(obs => obs.fieldId === currentScoutingField.id);
       
       fieldObs.forEach(obs => {
         const severityColor = obs.severity <= 2 ? '#4CAF50' : obs.severity <= 3 ? '#FF9800' : '#f44336';
@@ -1690,15 +1819,15 @@
       });
     }
 
-    function renderFieldPestObservations() {
-      const fieldObs = pestObservations.filter(obs => obs.fieldId === currentScoutingField.id);
-      
+    function renderFieldCropObservations() {
+      const fieldObs = cropObservations.filter(obs => obs.fieldId === currentScoutingField.id);
+
       if (fieldObs.length === 0) {
-        document.getElementById('pestObservationsList').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No observations yet for this field</p>';
+        document.getElementById('cropObservationsList').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No observations yet for this field</p>';
         return;
       }
 
-      document.getElementById('pestObservationsList').innerHTML = fieldObs.reverse().map(obs => {
+      document.getElementById('cropObservationsList').innerHTML = fieldObs.reverse().map(obs => {
         const severityColor = obs.severity <= 2 ? '#4CAF50' : obs.severity <= 3 ? '#FF9800' : '#f44336';
         const severityText = obs.severity <= 2 ? 'Low' : obs.severity <= 3 ? 'Medium' : 'High';
         const locationText = obs.location.type === 'pin' ? 'Point' : obs.location.type === 'zone' ? 'Zone' : 'Whole Field';
@@ -1743,7 +1872,7 @@
     }
 
     function generateHeatMapData() {
-      const fieldObs = pestObservations.filter(obs => obs.fieldId === currentScoutingField.id);
+      const fieldObs = cropObservations.filter(obs => obs.fieldId === currentScoutingField.id);
 
       const features = [];
 
@@ -1824,17 +1953,18 @@
             0, 1,
             15, 3
           ],
-          // Color ramp for heatmap - green (low) to red (high)
+          // Color ramp for heatmap - infrared spectrum (black-red-orange-yellow-white)
           'heatmap-color': [
             'interpolate',
             ['linear'],
             ['heatmap-density'],
-            0, 'rgba(33,102,172,0)',
-            0.2, 'rgb(103,169,207)',
-            0.4, 'rgb(209,229,240)',
-            0.6, 'rgb(253,219,199)',
-            0.8, 'rgb(239,138,98)',
-            1, 'rgb(178,24,43)'
+            0, 'rgba(0,0,0,0)',          // Transparent
+            0.2, 'rgb(0,0,0)',            // Black
+            0.4, 'rgb(139,0,0)',          // Dark red
+            0.6, 'rgb(255,69,0)',         // Red-orange
+            0.8, 'rgb(255,165,0)',        // Orange
+            0.9, 'rgb(255,255,0)',        // Yellow
+            1, 'rgb(255,255,255)'         // White (hottest)
           ],
           // Adjust radius based on zoom level
           'heatmap-radius': [
