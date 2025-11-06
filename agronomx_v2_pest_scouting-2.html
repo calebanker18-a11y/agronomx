@@ -112,6 +112,7 @@
       <button class="btn btn-secondary action-btn" onclick="showScreen('fields')">🌾 Manage Fields</button>
       <button class="btn action-btn" style="background: #FF5722;" onclick="showScreen('scouting')">🌿 Crop Scouting</button>
       <button class="btn action-btn" style="background: #9C27B0;" onclick="showScreen('inventory')">📦 Inventory</button>
+      <button class="btn action-btn" style="background: #667eea;" onclick="showScreen('operation')">📊 My Operation</button>
     </div>
 
     <!-- Location Settings Modal -->
@@ -561,6 +562,21 @@
     <div id="insightsContent"></div>
   </div>
 
+  <!-- My Operation Screen -->
+  <div id="operationScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 28px; font-weight: 600; color: #333; margin: 30px 0 20px;">📊 My Operation</h2>
+    <p style="color: #666; margin-bottom: 30px; font-size: 16px;">Complete overview of all fields, activities, and scouting data</p>
+
+    <div id="growingZoneInfo" style="margin-bottom: 30px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; color: white; display: none;">
+      <h3 style="font-size: 20px; margin-bottom: 10px;">🌍 Your Growing Zone</h3>
+      <div id="growingZoneDisplay" style="font-size: 16px;"></div>
+      <button onclick="uploadGrowingZone()" style="margin-top: 10px; padding: 8px 16px; background: rgba(255,255,255,0.2); border: 1px solid white; border-radius: 6px; color: white; cursor: pointer; font-family: 'Exo 2', sans-serif;">📤 Upload Zone Data</button>
+    </div>
+
+    <div id="operationContent" style="display: grid; gap: 30px;"></div>
+  </div>
+
   <script>
     mapboxgl.accessToken = 'pk.eyJ1IjoiY2FsZWIxMDAyIiwiYSI6ImNtaG1uNXh3NTBkcmEyaXE0ZG15aHllZGMifQ.t1Y6b25l7tzkiClKXf_lBA';
     
@@ -592,6 +608,9 @@
     let weatherData = null;
     let forecastData = null;
     let farmLocation = null; // { lat, lng }
+
+    // Growing zone data
+    let growingZone = null; // { zone: '5a', frostDates: { last: '...', first: '...' } }
 
     // Growth stage definitions
     const growthStages = {
@@ -694,6 +713,7 @@
         inventory = data.inventory || [];
         activityLogs = data.activityLogs || [];
         cropObservations = data.cropObservations || data.pestObservations || []; // Support old data
+        growingZone = data.growingZone || null;
       }
 
       // Load saved location
@@ -709,7 +729,8 @@
         fields: fields,
         inventory: inventory,
         activityLogs: activityLogs,
-        cropObservations: cropObservations
+        cropObservations: cropObservations,
+        growingZone: growingZone
       };
       localStorage.setItem('agronomx_data', JSON.stringify(data));
     }
@@ -737,6 +758,7 @@
       if (screen === 'inventory') renderInventory();
       if (screen === 'insights') renderInsights();
       if (screen === 'scouting') initScouting();
+      if (screen === 'operation') renderMyOperation();
     }
 
     function updateDashboard() {
@@ -1150,6 +1172,136 @@
 
       document.getElementById('pestInsights').innerHTML = html;
       document.getElementById('pestInsights').style.display = 'block';
+    }
+
+    // My Operation Functions
+    function renderMyOperation() {
+      // Show growing zone if available
+      if (growingZone) {
+        document.getElementById('growingZoneInfo').style.display = 'block';
+        document.getElementById('growingZoneDisplay').innerHTML = `
+          <div style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">Zone ${growingZone.zone}</div>
+          ${growingZone.frostDates ? `
+            <div style="font-size: 14px; opacity: 0.9;">
+              Last Frost: ${growingZone.frostDates.last}<br>
+              First Frost: ${growingZone.frostDates.first}
+            </div>
+          ` : ''}
+          ${growingZone.insights ? `<div style="margin-top: 10px; font-size: 14px;">${growingZone.insights}</div>` : ''}
+        `;
+      }
+
+      let html = '';
+
+      // All Fields Overview
+      if (fields.length > 0) {
+        html += '<div class="card"><h3 style="font-size: 20px; margin-bottom: 15px;">🌾 Fields</h3>';
+        fields.forEach(field => {
+          const fieldActivities = activityLogs.filter(log => log.field === field.name);
+          const fieldScoutings = cropObservations.filter(obs => obs.fieldId === field.id);
+          html += `
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 12px;">
+              <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">${field.name}</div>
+              <div style="font-size: 14px; color: #666; line-height: 1.6;">
+                <div><strong>${field.acres} acres</strong> • ${field.currentCrop}</div>
+                <div style="margin-top: 8px;">
+                  <span style="background: #2196F3; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-right: 5px;">
+                    ${fieldActivities.length} Activities
+                  </span>
+                  <span style="background: #FF5722; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">
+                    ${fieldScoutings.length} Scoutings
+                  </span>
+                </div>
+                ${field.latestGrowthStage ? `
+                  <div style="margin-top: 8px; color: #4CAF50; font-weight: 600;">
+                    Current Stage: ${field.latestGrowthStageName || field.latestGrowthStage}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+
+      // All Activities
+      if (activityLogs.length > 0) {
+        html += '<div class="card"><h3 style="font-size: 20px; margin-bottom: 15px;">📝 All Activities</h3>';
+        const recent = activityLogs.slice(-10).reverse();
+        recent.forEach(log => {
+          html += `
+            <div style="padding: 12px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between;">
+              <div style="flex: 1;">
+                <div style="font-weight: 600;">${log.activity}</div>
+                <div style="font-size: 14px; color: #666;">${log.field} • ${new Date(log.date).toLocaleDateString()}</div>
+                ${log.product ? `<div style="font-size: 13px; color: #999; margin-top: 4px;">${log.product}${log.applicationRate ? ` @ ${log.applicationRate} ${log.rateUnit}` : ''}</div>` : ''}
+              </div>
+              <div style="text-align: right;">
+                ${log.revenue > 0 ? `<div style="color: #4CAF50; font-weight: 600;">+$${log.revenue.toLocaleString()}</div>` : ''}
+                ${log.cost > 0 ? `<div style="color: #FF9800; font-size: 14px;">$${log.cost.toFixed(2)}</div>` : ''}
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+
+      // All Scouting Data
+      if (cropObservations.length > 0) {
+        html += '<div class="card"><h3 style="font-size: 20px; margin-bottom: 15px;">🌿 Scouting Records</h3>';
+        const recent = cropObservations.slice(-10).reverse();
+        recent.forEach(obs => {
+          const severityColor = obs.severity <= 2 ? '#4CAF50' : obs.severity <= 3 ? '#FF9800' : '#f44336';
+          const severityText = obs.severity <= 2 ? 'Low' : obs.severity <= 3 ? 'Medium' : 'High';
+          const locationBadge = obs.location === 'whole' || obs.location.type === 'field' ? '🟥 Field' :
+                               (obs.location.type === 'zone' ? '🟧 Zone' : '📍 Pin');
+          html += `
+            <div style="padding: 12px; border-bottom: 1px solid #f0f0f0;">
+              <div style="display: flex; justify-content: space-between; align-items: start;">
+                <div style="flex: 1;">
+                  <div style="font-size: 12px; color: #999; margin-bottom: 4px;">${locationBadge}</div>
+                  <div style="font-weight: 600;">${obs.pestType || obs.observationType}</div>
+                  <div style="font-size: 14px; color: #666;">${obs.fieldName} • ${new Date(obs.timestamp).toLocaleDateString()}</div>
+                  ${obs.notes ? `<div style="font-size: 13px; color: #999; margin-top: 4px;">${obs.notes}</div>` : ''}
+                </div>
+                ${obs.severity ? `
+                  <div style="padding: 4px 12px; background: ${severityColor}; color: white; border-radius: 20px; font-size: 12px; font-weight: 600;">${severityText}</div>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+      }
+
+      document.getElementById('operationContent').innerHTML = html || '<p style="text-align: center; color: #999; padding: 40px;">No data yet. Start logging activities and scouting!</p>';
+    }
+
+    function uploadGrowingZone() {
+      const zone = prompt('Enter your USDA Growing Zone (e.g., 5a, 6b, 7a):');
+      if (!zone) return;
+
+      const lastFrost = prompt('Enter average last frost date (e.g., May 15):');
+      const firstFrost = prompt('Enter average first frost date (e.g., October 1):');
+
+      growingZone = {
+        zone: zone,
+        frostDates: lastFrost && firstFrost ? { last: lastFrost, first: firstFrost } : null
+      };
+
+      // Add zone-specific insights
+      const zoneNum = parseInt(zone);
+      if (zoneNum >= 1 && zoneNum <= 3) {
+        growingZone.insights = 'Cold climate zone. Focus on cold-hardy varieties and shorter growing seasons.';
+      } else if (zoneNum >= 4 && zoneNum <= 6) {
+        growingZone.insights = 'Temperate zone ideal for corn, soybeans, and wheat. Plan for late spring planting.';
+      } else if (zoneNum >= 7 && zoneNum <= 10) {
+        growingZone.insights = 'Warmer zone with extended growing season. Consider double-cropping opportunities.';
+      }
+
+      saveData();
+      renderMyOperation();
+      alert('Growing zone data saved!');
     }
 
     // Weather Functions
@@ -1897,7 +2049,29 @@
       document.getElementById('seedGroup').classList.toggle('hidden', !needsSeed);
       document.getElementById('harvestGroup').classList.toggle('hidden', !isHarvest);
 
-      if (needsProduct) updateProductSelect();
+      if (needsProduct) {
+        updateProductSelect();
+        // Auto-select unit based on activity type
+        setDefaultUnit(activity);
+      }
+    }
+
+    function setDefaultUnit(activity) {
+      const activityLower = activity.toLowerCase();
+      const rateUnitSelect = document.getElementById('rateUnit');
+
+      // Herbicides, Insecticides, Fungicides typically use oz/acre
+      if (activityLower.includes('herbicide') || activityLower.includes('insecticide') || activityLower.includes('fungicide')) {
+        rateUnitSelect.value = 'oz/acre';
+      }
+      // Fertilizers typically use lb/acre
+      else if (activityLower.includes('fertilizer') || activityLower.includes('nitrogen') || activityLower.includes('phosphorus')) {
+        rateUnitSelect.value = 'lb/acre';
+      }
+      // Default to oz/acre for other applications
+      else {
+        rateUnitSelect.value = 'oz/acre';
+      }
     }
 
     function filterFields(value) {
@@ -2004,6 +2178,7 @@
 
       if (activity.toLowerCase().includes('plant')) {
         const variety = document.getElementById('seedVariety').value;
+        const seedPopulation = document.getElementById('seedPopulation').value;
         if (variety && field !== 'All Fields') {
           const f = fields.find(fi => fi.name === field);
           if (f) {
@@ -2014,8 +2189,45 @@
         }
       }
 
-      activityLogs.push({ id: Date.now(), activity, field, date, cost, revenue });
-      
+      // Build activity log object with all details
+      const activityLog = {
+        id: Date.now(),
+        activity,
+        field,
+        date,
+        cost,
+        revenue
+      };
+
+      // Save application details if product was used
+      if (product) {
+        const rate = parseFloat(document.getElementById('applicationRate').value);
+        const rateUnit = document.getElementById('rateUnit').value;
+        if (rate) {
+          activityLog.applicationRate = rate;
+          activityLog.rateUnit = rateUnit;
+          activityLog.product = product;
+        }
+      }
+
+      // Save planting details
+      if (activity.toLowerCase().includes('plant')) {
+        const variety = document.getElementById('seedVariety').value;
+        const seedPopulation = document.getElementById('seedPopulation').value;
+        if (variety) activityLog.seedVariety = variety;
+        if (seedPopulation) activityLog.seedPopulation = seedPopulation;
+      }
+
+      // Save harvest details
+      if (activity.toLowerCase().includes('harvest')) {
+        const bushels = parseFloat(document.getElementById('totalBushels').value);
+        const price = parseFloat(document.getElementById('pricePerBushel').value);
+        if (bushels) activityLog.bushels = bushels;
+        if (price) activityLog.pricePerBushel = price;
+      }
+
+      activityLogs.push(activityLog);
+
       saveData(); // Save to localStorage
       alert('Activity logged successfully!');
       showScreen('dashboard');
