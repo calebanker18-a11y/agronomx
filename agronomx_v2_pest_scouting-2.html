@@ -303,7 +303,11 @@
       </div>
       
       <div style="position: relative;">
-        <div id="scoutingMap" style="width: 100%; height: 600px; border-radius: 12px;"></div>
+        <div id="scoutingMap" style="width: 100%; height: 600px; border-radius: 12px; background-color: #e0e0e0;">
+          <div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666; font-size: 16px;">
+            Loading map...
+          </div>
+        </div>
         
         <!-- Scouting Controls -->
         <div style="position: absolute; top: 10px; left: 10px; z-index: 1; display: flex; flex-direction: column; gap: 10px;">
@@ -1196,6 +1200,12 @@
       currentScoutingField = fields.find(f => f.id === fieldId);
       if (!currentScoutingField) return;
 
+      // Check if field has coordinates
+      if (!currentScoutingField.coordinates || currentScoutingField.coordinates.length < 3) {
+        alert('This field does not have map coordinates. Please edit the field and add boundary coordinates to use pest scouting.');
+        return;
+      }
+
       document.getElementById('scoutingFieldSelect').classList.add('hidden');
       document.getElementById('scoutingMapView').classList.remove('hidden');
       document.getElementById('scoutingFieldName').textContent = currentScoutingField.name;
@@ -1211,18 +1221,35 @@
 
       // Get center of field
       const coords = currentScoutingField.coordinates;
-      const center = turf.center(turf.polygon([coords])).geometry.coordinates;
+      let center;
 
-      scoutingMap = new mapboxgl.Map({
-        container: 'scoutingMap',
-        style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: center,
-        zoom: 15
-      });
+      try {
+        center = turf.center(turf.polygon([coords])).geometry.coordinates;
+      } catch (error) {
+        console.error('Error calculating field center:', error);
+        // Fallback to average of coordinates
+        const avgLng = coords.reduce((sum, c) => sum + c[0], 0) / coords.length;
+        const avgLat = coords.reduce((sum, c) => sum + c[1], 0) / coords.length;
+        center = [avgLng, avgLat];
+      }
 
-      scoutingMap.addControl(new mapboxgl.NavigationControl());
+      try {
+        scoutingMap = new mapboxgl.Map({
+          container: 'scoutingMap',
+          style: 'mapbox://styles/mapbox/satellite-streets-v12',
+          center: center,
+          zoom: 15
+        });
 
-      scoutingMap.on('load', () => {
+        scoutingMap.addControl(new mapboxgl.NavigationControl());
+
+        scoutingMap.on('error', (e) => {
+          console.error('Mapbox error:', e);
+          alert('Error loading map. Please check your internet connection and try again.');
+        });
+
+        scoutingMap.on('load', () => {
+          console.log('Scouting map loaded successfully');
         // Draw field boundary
         scoutingMap.addSource('field-boundary', {
           'type': 'geojson',
@@ -1256,12 +1283,21 @@
         });
 
         // Fit map to field
-        const bbox = turf.bbox(turf.polygon([coords]));
-        scoutingMap.fitBounds(bbox, { padding: 50 });
+        try {
+          const bbox = turf.bbox(turf.polygon([coords]));
+          scoutingMap.fitBounds(bbox, { padding: 50 });
+        } catch (error) {
+          console.error('Error fitting map bounds:', error);
+          // Map will stay at the center zoom level
+        }
 
         // Load existing pest markers
         loadPestMarkers();
       });
+      } catch (error) {
+        console.error('Error initializing scouting map:', error);
+        alert('Failed to initialize map: ' + error.message + '\n\nPlease ensure:\n1. You have an internet connection\n2. The field has valid coordinates\n3. Try refreshing the page');
+      }
     }
 
     function togglePinMode() {
