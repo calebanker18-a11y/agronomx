@@ -105,6 +105,15 @@
       </div>
     </div>
 
+    <!-- Quick Actions -->
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">Quick Actions</h2>
+    <div class="action-grid" style="margin-bottom: 40px;">
+      <button class="btn action-btn" onclick="showScreen('log')">📝 Log Activity</button>
+      <button class="btn btn-secondary action-btn" onclick="showScreen('fields')">🌾 Manage Fields</button>
+      <button class="btn action-btn" style="background: #FF5722;" onclick="showScreen('scouting')">🌿 Crop Scouting</button>
+      <button class="btn action-btn" style="background: #9C27B0;" onclick="showScreen('inventory')">📦 Inventory</button>
+    </div>
+
     <!-- Location Settings Modal -->
     <div id="locationModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center;" onclick="closeLocationSettings()">
       <div style="background: white; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">
@@ -192,14 +201,8 @@
     <!-- Suggested Activities -->
     <div id="suggestedActivities" class="card" style="margin-bottom: 40px;"></div>
 
-    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Quick Actions</h2>
-    <div class="action-grid">
-      <button class="btn action-btn" onclick="showScreen('log')">📝 Log Activity</button>
-      <button class="btn btn-secondary action-btn" onclick="showScreen('fields')">🌾 Manage Fields</button>
-      <button class="btn action-btn" style="background: #FF5722;" onclick="showScreen('scouting')">🌿 Crop Scouting</button>
-      <button class="btn action-btn" style="background: #FF9800;" onclick="showScreen('inventory')">📦 Manage Inventory</button>
-      <button class="btn action-btn" style="background: #9C27B0;" onclick="showScreen('insights')">📈 View Insights</button>
-    </div>
+    <!-- Pest & Disease Insights -->
+    <div id="pestInsights" class="card" style="margin-bottom: 40px; display: none;"></div>
 
     <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Recent Activity</h2>
     <div id="recentActivity" class="card">
@@ -423,21 +426,27 @@
 
           <div id="pestFields">
             <div class="form-group">
-              <label>Pest Type</label>
-              <input type="text" id="pestType" placeholder="e.g., Japanese Beetle" list="commonPests">
-            <datalist id="commonPests">
-              <option value="Japanese Beetle">
-              <option value="Corn Rootworm">
-              <option value="Aphids">
-              <option value="Armyworm">
-              <option value="Cutworm">
-              <option value="Spider Mites">
-              <option value="Stink Bugs">
-              <option value="White Grubs">
-              <option value="Wireworms">
-              <option value="Western Bean Cutworm">
-            </datalist>
-          </div>
+              <label>Pest Category</label>
+              <select id="pestCategory" onchange="updatePestList()" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                <option value="">Select category...</option>
+                <option value="weed">Weed</option>
+                <option value="insect">Insect</option>
+                <option value="disease">Disease/Fungus</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Pest Name</label>
+              <select id="pestType" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px;">
+                <option value="">Select category first...</option>
+              </select>
+            </div>
+
+            <div id="treatmentRecommendation" style="display: none; margin: 10px 0; padding: 12px; background: #e3f2fd; border-left: 4px solid #2196F3; border-radius: 4px;">
+              <div style="font-size: 14px; color: #1976D2;">
+                <strong>Recommended Treatment:</strong> <span id="recommendedTreatment">-</span>
+              </div>
+            </div>
 
             <div class="form-group">
               <label>Severity</label>
@@ -510,10 +519,14 @@
             </div>
 
             <div id="yieldPrediction" style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 10px 0; display: none;">
-              <h4 style="margin-bottom: 10px; color: #2e7d32;">Yield Prediction</h4>
+              <h4 style="margin-bottom: 10px; color: #2e7d32;">Yield Prediction & Stand Analysis</h4>
               <div style="font-size: 14px; line-height: 1.6;">
-                <div><strong>Plants per Acre:</strong> <span id="plantsPerAcre">-</span></div>
-                <div><strong>Estimated Yield:</strong> <span id="estimatedYield" style="font-size: 18px; color: #2e7d32; font-weight: 700;">-</span></div>
+                <div><strong>Current Stand:</strong> <span id="plantsPerAcre">-</span> plants/acre</div>
+                <div id="populationLossDiv" style="display: none; margin: 8px 0; padding: 10px; background: #fff3cd; border-left: 4px solid #ff9800; border-radius: 4px;">
+                  <div><strong>Planted Population:</strong> <span id="plantedPopulation">-</span> plants/acre</div>
+                  <div style="color: #d32f2f; font-weight: 600; margin-top: 4px;"><strong>Population Loss:</strong> <span id="populationLoss">-</span> plants (<span id="populationLossPercent">-</span>%)</div>
+                </div>
+                <div style="margin-top: 8px;"><strong>Estimated Yield:</strong> <span id="estimatedYield" style="font-size: 18px; color: #2e7d32; font-weight: 700;">-</span></div>
               </div>
             </div>
           </div>
@@ -631,6 +644,32 @@
         { code: 'DF', name: 'Dough Fill', description: 'Kernel soft dough consistency' },
         { code: 'M', name: 'Mature/Ripening', description: 'Kernel hard, ready for harvest' }
       ]
+    };
+
+    // Comprehensive US Pest Database
+    const pestDatabase = {
+      weeds: {
+        corn: ['Waterhemp', 'Palmer Amaranth', 'Giant Ragweed', 'Common Ragweed', 'Foxtail (Giant)', 'Foxtail (Green)', 'Foxtail (Yellow)', 'Velvetleaf', 'Lambsquarters', 'Pigweed (Redroot)', 'Pigweed (Smooth)', 'Cocklebur', 'Morningglory', 'Kochia', 'Marestail (Horseweed)', 'Shattercane', 'Johnsongrass', 'Barnyard Grass', 'Crabgrass', 'Fall Panicum', 'Smartweed', 'Common Sunflower', 'Wild Mustard', 'Canada Thistle', 'Field Bindweed', 'Nutsedge (Yellow)', 'Nutsedge (Purple)', 'Quackgrass'],
+        soybeans: ['Waterhemp', 'Palmer Amaranth', 'Giant Ragweed', 'Common Ragweed', 'Foxtail (Giant)', 'Foxtail (Green)', 'Foxtail (Yellow)', 'Velvetleaf', 'Lambsquarters', 'Pigweed (Redroot)', 'Pigweed (Smooth)', 'Cocklebur', 'Morningglory', 'Kochia', 'Marestail (Horseweed)', 'Burcucumber', 'Canada Thistle', 'Field Bindweld', 'Common Sunflower', 'Wild Mustard', 'Smartweed', 'Barnyard Grass', 'Crabgrass', 'Johnsongrass', 'Volunteer Corn', 'Nutsedge (Yellow)', 'Nutsedge (Purple)', 'Dandelion', 'Henbit'],
+        wheat: ['Downy Brome (Cheatgrass)', 'Italian Ryegrass', 'Wild Oat', 'Jointed Goatgrass', 'Henbit', 'Purple Deadnettle', 'Field Pennycress', 'Shepherds Purse', 'Marestail (Horseweed)', 'Common Chickweed', 'Canada Thistle', 'Dandelion', 'Wild Mustard', 'Kochia', 'Russian Thistle', 'Wild Buckwheat', 'Foxtail (Green)', 'Quackgrass', 'Volunteer Canola']
+      },
+      insects: {
+        corn: ['Corn Rootworm (Western)', 'Corn Rootworm (Northern)', 'European Corn Borer', 'Corn Earworm', 'Fall Armyworm', 'True Armyworm', 'Black Cutworm', 'Western Bean Cutworm', 'Wireworm', 'White Grub', 'Japanese Beetle', 'Corn Flea Beetle', 'Seed Corn Maggot', 'Stalk Borer', 'Aphid (Corn Leaf)', 'Aphid (Bird Cherry-Oat)', 'Grasshopper', 'Spider Mite (Two-Spotted)', 'Billbug', 'Chinch Bug', 'Southern Corn Rootworm (Spotted Cucumber Beetle)', 'Sap Beetle'],
+        soybeans: ['Soybean Aphid', 'Bean Leaf Beetle', 'Japanese Beetle', 'Grasshopper', 'Spider Mite (Two-Spotted)', 'Potato Leafhopper', 'Stink Bug (Brown)', 'Stink Bug (Green)', 'Soybean Cyst Nematode', 'Corn Earworm', 'Armyworm', 'Cutworm (Black)', 'Cutworm (Dingy)', 'Seed Corn Maggot', 'Wireworm', 'White Grub', 'Thistle Caterpillar', 'Woollybear Caterpillar', 'Grape Colaspis', 'Threecornered Alfalfa Hopper', 'Dectes Stem Borer', 'Mexican Bean Beetle'],
+        wheat: ['Hessian Fly', 'Wheat Stem Sawfly', 'Armyworm (True)', 'Aphid (Bird Cherry-Oat)', 'Aphid (Greenbug)', 'Aphid (English Grain)', 'Aphid (Russian Wheat)', 'Grasshopper', 'Wheat Curl Mite', 'Cereal Leaf Beetle', 'Wireworm', 'White Grub', 'Cutworm (Army)', 'Fall Armyworm', 'Wheat Jointworm', 'Wheat Midge', 'Brown Wheat Mite', 'Stink Bug']
+      },
+      diseases: {
+        corn: ['Gray Leaf Spot', 'Northern Corn Leaf Blight', 'Southern Corn Leaf Blight', 'Common Rust', 'Southern Rust', 'Eyespot', 'Tar Spot', 'Anthracnose', 'Goss\'s Wilt', 'Stewart\'s Wilt', 'Bacterial Leaf Streak', 'Holcus Spot', 'Diplodia Ear Rot', 'Gibberella Ear Rot', 'Fusarium Ear Rot', 'Aspergillus Ear Rot', 'Common Smut', 'Head Smut', 'Crazy Top', 'Corn Lethal Necrosis', 'Maize Dwarf Mosaic Virus', 'Pythium Seedling Blight', 'Fusarium Stalk Rot', 'Gibberella Stalk Rot', 'Anthracnose Stalk Rot', 'Diplodia Stalk Rot'],
+        soybeans: ['White Mold (Sclerotinia)', 'Frogeye Leaf Spot', 'Brown Spot (Septoria)', 'Cercospora Leaf Blight', 'Sudden Death Syndrome', 'Charcoal Rot', 'Phytophthora Root Rot', 'Pythium Root Rot', 'Rhizoctonia Root Rot', 'Fusarium Root Rot', 'Brown Stem Rot', 'Pod and Stem Blight', 'Stem Canker', 'Bacterial Blight', 'Bacterial Pustule', 'Wildfire', 'Downy Mildew', 'Powdery Mildew', 'Soybean Rust', 'Target Spot', 'Anthracnose', 'Purple Seed Stain', 'Phomopsis Seed Decay', 'Soybean Mosaic Virus', 'Bean Pod Mottle Virus'],
+        wheat: ['Stripe Rust (Yellow Rust)', 'Leaf Rust', 'Stem Rust', 'Powdery Mildew', 'Septoria Tritici Blotch', 'Tan Spot', 'Stagonospora Nodorum Blotch', 'Fusarium Head Blight (Scab)', 'Loose Smut', 'Common Bunt (Stinking Smut)', 'Dwarf Bunt', 'Flag Smut', 'Take-All', 'Pythium Root Rot', 'Rhizoctonia Root Rot', 'Fusarium Crown Rot', 'Common Root Rot', 'Barley Yellow Dwarf Virus', 'Wheat Streak Mosaic Virus', 'Wheat Spindle Streak Mosaic Virus', 'Halo Spot', 'Bacterial Leaf Streak', 'Black Chaff', 'Strawbreaker Foot Rot', 'Sharp Eyespot']
+      }
+    };
+
+    // Pest type and treatment mapping
+    const pestTreatments = {
+      weed: { treatment: 'Herbicide', color: '#FF6B6B' },
+      insect: { treatment: 'Insecticide', color: '#FFA500' },
+      disease: { treatment: 'Fungicide', color: '#9B59B6' }
     };
 
     // Activity database
@@ -770,6 +809,9 @@
 
       // Generate suggested activities
       generateActivitySuggestions();
+
+      // Generate pest and disease insights
+      generatePestInsights();
     }
 
     // Smart Activity Recommendation Engine
@@ -994,6 +1036,120 @@
       }
 
       document.getElementById('suggestedActivities').innerHTML = html;
+    }
+
+    // Pest & Disease Insights Engine
+    function generatePestInsights() {
+      if (fields.length === 0 || cropObservations.length === 0) {
+        document.getElementById('pestInsights').style.display = 'none';
+        return;
+      }
+
+      const pestIssues = [];
+
+      fields.forEach(field => {
+        const fieldObs = cropObservations.filter(obs => obs.fieldId === field.id && obs.observationType === 'pest');
+
+        fieldObs.forEach(obs => {
+          const priority = obs.location === 'whole' ? 100 : (obs.location === 'zone' ? 50 : 10);
+          const severityBoost = obs.severity || 3;
+
+          pestIssues.push({
+            field: field.name,
+            fieldAcres: field.acres,
+            pest: obs.pestType,
+            category: obs.pestCategory,
+            treatment: obs.recommendedTreatment,
+            severity: obs.severity || 3,
+            location: obs.location,
+            priority: priority + (severityBoost * 5),
+            date: obs.timestamp
+          });
+        });
+      });
+
+      if (pestIssues.length === 0) {
+        document.getElementById('pestInsights').style.display = 'none';
+        return;
+      }
+
+      // Sort by priority (whole field + high severity = highest priority)
+      pestIssues.sort((a, b) => b.priority - a.priority);
+
+      // Get top issues
+      const topIssues = pestIssues.slice(0, 5);
+
+      let html = '<h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">🐛 Pest & Disease Insights</h2>';
+
+      topIssues.forEach(issue => {
+        const categoryColor = issue.category === 'disease' ? '#9B59B6' : (issue.category === 'insect' ? '#FFA500' : '#FF6B6B');
+        const locationBadge = issue.location === 'whole' ? '🟥 Whole Field' : (issue.location === 'zone' ? '🟧 Zone' : '📍 Pin');
+        const severityStars = '⭐'.repeat(issue.severity);
+
+        // Calculate treatment needs
+        let treatmentNeeds = '';
+        if (issue.location === 'whole' && issue.fieldAcres) {
+          const acresNeedingTreatment = issue.fieldAcres;
+
+          // Check inventory
+          const treatmentInventory = inventory.filter(item =>
+            item.name.toLowerCase().includes(issue.treatment.toLowerCase())
+          );
+
+          let inventoryWarning = '';
+          if (treatmentInventory.length > 0) {
+            const totalInStock = treatmentInventory.reduce((sum, item) => sum + (item.quantity || 0), 0);
+            const estimatedNeed = acresNeedingTreatment; // Simplified - assuming 1 unit per acre
+
+            if (totalInStock < estimatedNeed) {
+              inventoryWarning = `
+                <div style="background: #fff3cd; padding: 10px; border-radius: 6px; margin-top: 10px; border-left: 3px solid #ff9800;">
+                  <strong>⚠️ Inventory Warning:</strong> ${issue.treatment} inventory may be too low to treat ${acresNeedingTreatment.toFixed(1)} acres.
+                  <br><span style="font-size: 12px;">In stock: ${totalInStock} units | Estimated need: ~${estimatedNeed.toFixed(1)} units</span>
+                </div>
+              `;
+            }
+          } else {
+            inventoryWarning = `
+              <div style="background: #ffebee; padding: 10px; border-radius: 6px; margin-top: 10px; border-left: 3px solid #f44336;">
+                <strong>❌ No ${issue.treatment} in inventory</strong> to treat ${acresNeedingTreatment.toFixed(1)} acres.
+              </div>
+            `;
+          }
+
+          treatmentNeeds = inventoryWarning;
+        }
+
+        // Disease-specific insight
+        let diseaseInsight = '';
+        if (issue.category === 'disease') {
+          diseaseInsight = `
+            <div style="background: #e8eaf6; padding: 10px; border-radius: 6px; margin-top: 10px; border-left: 3px solid #9B59B6;">
+              <strong>💡 Insight:</strong> Fungicide application may reduce the spread of ${issue.pest}.
+              ${issue.location === 'whole' ? 'Immediate field-wide treatment recommended.' : 'Monitor for spread beyond current area.'}
+            </div>
+          `;
+        }
+
+        html += `
+          <div style="background: white; padding: 18px; border-radius: 12px; margin-bottom: 15px; border-left: 5px solid ${categoryColor}; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 10px;">
+              <div style="flex: 1;">
+                <div style="font-size: 12px; color: #999; margin-bottom: 5px;">${locationBadge} • ${severityStars} Severity</div>
+                <div style="font-weight: 600; font-size: 18px; color: #333;">${issue.field}</div>
+                <div style="font-size: 16px; color: ${categoryColor}; margin: 5px 0;"><strong>${issue.pest}</strong></div>
+                <div style="font-size: 14px; color: #666;">Category: ${issue.category.charAt(0).toUpperCase() + issue.category.slice(1)}</div>
+                <div style="font-size: 14px; color: #2196F3; margin-top: 5px;"><strong>Recommended: ${issue.treatment}</strong></div>
+              </div>
+            </div>
+            ${diseaseInsight}
+            ${treatmentNeeds}
+          </div>
+        `;
+      });
+
+      document.getElementById('pestInsights').innerHTML = html;
+      document.getElementById('pestInsights').style.display = 'block';
     }
 
     // Weather Functions
@@ -2230,6 +2386,10 @@
     }
 
     function drawZonePreview() {
+      // Remove existing layers
+      if (scoutingMap.getLayer('zone-preview-outline')) {
+        scoutingMap.removeLayer('zone-preview-outline');
+      }
       if (scoutingMap.getLayer('zone-preview')) {
         scoutingMap.removeLayer('zone-preview');
       }
@@ -2239,56 +2399,76 @@
 
       if (zonePoints.length < 2) return;
 
-      const geojsonType = zonePoints.length === 2 ? 'LineString' : 'Polygon';
-      const coordinates = zonePoints.length === 2 ? zonePoints : [[...zonePoints, zonePoints[0]]];
+      // Always create a polygon for 2+ points by closing the shape
+      const coordinates = [[...zonePoints, zonePoints[0]]];
 
       scoutingMap.addSource('zone-preview', {
         'type': 'geojson',
         'data': {
           'type': 'Feature',
           'geometry': {
-            'type': geojsonType,
+            'type': 'Polygon',
             'coordinates': coordinates
           }
         }
       });
 
-      if (zonePoints.length === 2) {
-        scoutingMap.addLayer({
-          'id': 'zone-preview',
-          'type': 'line',
-          'source': 'zone-preview',
-          'paint': {
-            'line-color': '#FF5722',
-            'line-width': 2,
-            'line-dasharray': [2, 2]
-          }
-        });
-      } else {
-        scoutingMap.addLayer({
-          'id': 'zone-preview',
-          'type': 'fill',
-          'source': 'zone-preview',
-          'paint': {
-            'fill-color': '#FF9800',
-            'fill-opacity': 0.3
-          }
-        });
+      // Add orange fill
+      scoutingMap.addLayer({
+        'id': 'zone-preview',
+        'type': 'fill',
+        'source': 'zone-preview',
+        'paint': {
+          'fill-color': '#FF9800',
+          'fill-opacity': 0.4
+        }
+      });
 
-        scoutingMap.addLayer({
-          'id': 'zone-preview-outline',
-          'type': 'line',
-          'source': 'zone-preview',
-          'paint': {
-            'line-color': '#FF5722',
-            'line-width': 3
-          }
-        });
-      }
+      // Add orange outline
+      scoutingMap.addLayer({
+        'id': 'zone-preview-outline',
+        'type': 'line',
+        'source': 'zone-preview',
+        'paint': {
+          'line-color': '#FF9800',
+          'line-width': 3
+        }
+      });
     }
 
     function markWholeField() {
       tempCropLocation = { type: 'field', coordinates: currentScoutingField.coordinates };
+
+      // Highlight the field
+      if (scoutingMap.getLayer('field-highlight')) {
+        scoutingMap.removeLayer('field-highlight');
+      }
+      if (scoutingMap.getSource('field-highlight')) {
+        scoutingMap.removeSource('field-highlight');
+      }
+
+      scoutingMap.addSource('field-highlight', {
+        'type': 'geojson',
+        'data': {
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Polygon',
+            'coordinates': currentScoutingField.coordinates
+          }
+        }
+      });
+
+      scoutingMap.addLayer({
+        'id': 'field-highlight',
+        'type': 'fill',
+        'source': 'field-highlight',
+        'paint': {
+          'fill-color': '#4CAF50',
+          'fill-opacity': 0.5
+        }
+      });
+
+      // Auto-remove highlight after observation is logged
       showCropLogForm();
     }
 
@@ -2388,6 +2568,45 @@
       };
     }
 
+    function updatePestList() {
+      const category = document.getElementById('pestCategory').value;
+      const pestSelect = document.getElementById('pestType');
+
+      if (!category) {
+        pestSelect.innerHTML = '<option value="">Select category first...</option>';
+        document.getElementById('treatmentRecommendation').style.display = 'none';
+        return;
+      }
+
+      // Get crop type from field
+      let cropType = 'corn'; // default
+      if (currentScoutingField) {
+        const fieldActivities = activityLogs.filter(log => log.field === currentScoutingField.name);
+        const plantingActivity = fieldActivities.find(a => a.activity && a.activity.toLowerCase().includes('plant'));
+
+        if (plantingActivity) {
+          if (plantingActivity.activity.toLowerCase().includes('corn')) cropType = 'corn';
+          else if (plantingActivity.activity.toLowerCase().includes('soybean')) cropType = 'soybeans';
+          else if (plantingActivity.activity.toLowerCase().includes('wheat')) cropType = 'wheat';
+        }
+      }
+
+      // Get appropriate pest list
+      const pests = pestDatabase[category + 's']?.[cropType] || [];
+
+      // Populate dropdown
+      pestSelect.innerHTML = '<option value="">Select pest...</option>' +
+        pests.map(pest => `<option value="${pest}">${pest}</option>`).join('');
+
+      // Show treatment recommendation
+      const treatment = pestTreatments[category];
+      if (treatment) {
+        document.getElementById('recommendedTreatment').textContent = treatment.treatment;
+        document.getElementById('treatmentRecommendation').style.display = 'block';
+        document.getElementById('treatmentRecommendation').style.borderLeftColor = treatment.color;
+      }
+    }
+
     function calculateYield() {
       const rowLength = parseFloat(document.getElementById('rowLength').value);
       const rowSpacing = parseFloat(document.getElementById('rowSpacing').value);
@@ -2412,6 +2631,28 @@
 
       document.getElementById('plantsPerAcre').textContent = plantsPerAcre.toLocaleString();
       document.getElementById('estimatedYield').textContent = estimatedYield.toLocaleString() + ' bu/ac';
+
+      // Check for population loss compared to planting
+      if (currentScoutingField) {
+        const fieldActivities = activityLogs.filter(log => log.field === currentScoutingField.name);
+        const plantingActivity = fieldActivities.find(a => a.activity && a.activity.toLowerCase().includes('plant'));
+
+        if (plantingActivity && plantingActivity.seedPopulation) {
+          const plantedPop = parseInt(plantingActivity.seedPopulation);
+          const loss = plantedPop - plantsPerAcre;
+          const lossPercent = ((loss / plantedPop) * 100).toFixed(1);
+
+          document.getElementById('plantedPopulation').textContent = plantedPop.toLocaleString();
+          document.getElementById('populationLoss').textContent = loss.toLocaleString();
+          document.getElementById('populationLossPercent').textContent = lossPercent;
+          document.getElementById('populationLossDiv').style.display = 'block';
+        } else {
+          document.getElementById('populationLossDiv').style.display = 'none';
+        }
+      } else {
+        document.getElementById('populationLossDiv').style.display = 'none';
+      }
+
       document.getElementById('yieldPrediction').style.display = 'block';
     }
 
@@ -2449,6 +2690,7 @@
     function cancelCropLog() {
       document.getElementById('cropLogForm').classList.add('hidden');
       document.getElementById('observationType').value = 'pest';
+      document.getElementById('pestCategory').value = '';
       document.getElementById('pestType').value = '';
       document.getElementById('pestSeverity').value = '3';
       document.getElementById('growthCropType').value = '';
@@ -2461,6 +2703,14 @@
       scoutingMode = null;
       updateScoutingButtons();
       clearTempMarkers();
+
+      // Remove field highlight
+      if (scoutingMap && scoutingMap.getLayer('field-highlight')) {
+        scoutingMap.removeLayer('field-highlight');
+      }
+      if (scoutingMap && scoutingMap.getSource('field-highlight')) {
+        scoutingMap.removeSource('field-highlight');
+      }
     }
 
     function updateSeverityLabel(value) {
@@ -2478,16 +2728,24 @@
       let observationData = { observationType };
 
       if (observationType === 'pest') {
+        const pestCategory = document.getElementById('pestCategory').value;
         const pestType = document.getElementById('pestType').value;
         const severity = parseInt(document.getElementById('pestSeverity').value);
 
-        if (!pestType) {
-          alert('Please enter a pest type');
+        if (!pestCategory || !pestType) {
+          alert('Please select pest category and type');
           return;
         }
 
+        observationData.pestCategory = pestCategory;
         observationData.pestType = pestType;
         observationData.severity = severity;
+
+        // Add treatment recommendation
+        const treatment = pestTreatments[pestCategory];
+        if (treatment) {
+          observationData.recommendedTreatment = treatment.treatment;
+        }
       } else if (observationType === 'growth') {
         const cropType = document.getElementById('growthCropType').value;
         const growthStage = document.getElementById('growthStage').value;
