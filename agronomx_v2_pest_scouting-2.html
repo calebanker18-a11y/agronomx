@@ -310,6 +310,7 @@
           <button id="pinModeBtn" class="btn" onclick="togglePinMode()" style="background: #FF5722;">📍 Drop Pin</button>
           <button id="zoneModeBtn" class="btn" onclick="toggleZoneMode()" style="background: #FF9800;">🟢 Draw Zone</button>
           <button id="fieldModeBtn" class="btn" onclick="markWholeField()" style="background: #4CAF50;">🌾 Whole Field</button>
+          <button id="heatMapBtn" class="btn btn-secondary" onclick="toggleHeatMap()" style="background: #9C27B0;">🔥 Heat Map</button>
         </div>
 
         <!-- Active Pest Log Form -->
@@ -396,6 +397,7 @@
     let zonePoints = [];
     let zoneMarkers = [];
     let tempPestLocation = null;
+    let heatMapVisible = false;
 
     // Activity database
     const activityTypes = [
@@ -1468,6 +1470,7 @@
       cancelPestLog();
       loadPestMarkers();
       renderFieldPestObservations();
+      updateHeatMap(); // Update heat map with new observation
       alert('Pest observation saved!');
     }
 
@@ -1557,9 +1560,155 @@
       document.getElementById('scoutingMapView').classList.add('hidden');
       document.getElementById('scoutingFieldSelect').classList.remove('hidden');
       currentScoutingField = null;
+      heatMapVisible = false;
       if (scoutingMap) {
         scoutingMap.remove();
         scoutingMap = null;
+      }
+    }
+
+    // Heat Map Functions
+    function toggleHeatMap() {
+      heatMapVisible = !heatMapVisible;
+      document.getElementById('heatMapBtn').style.background = heatMapVisible ? '#7B1FA2' : '#9C27B0';
+
+      if (heatMapVisible) {
+        addHeatMapLayer();
+      } else {
+        removeHeatMapLayer();
+      }
+    }
+
+    function generateHeatMapData() {
+      const fieldObs = pestObservations.filter(obs => obs.fieldId === currentScoutingField.id);
+
+      const features = [];
+
+      fieldObs.forEach(obs => {
+        let point = null;
+
+        if (obs.location.type === 'pin') {
+          // Use pin coordinates directly
+          point = obs.location.coordinates;
+        } else if (obs.location.type === 'zone') {
+          // Calculate centroid of zone polygon
+          const polygon = turf.polygon([[...obs.location.coordinates, obs.location.coordinates[0]]]);
+          point = turf.centroid(polygon).geometry.coordinates;
+        } else if (obs.location.type === 'field') {
+          // Calculate centroid of field
+          const polygon = turf.polygon([[...obs.location.coordinates, obs.location.coordinates[0]]]);
+          point = turf.centroid(polygon).geometry.coordinates;
+        }
+
+        if (point) {
+          features.push({
+            type: 'Feature',
+            geometry: {
+              type: 'Point',
+              coordinates: point
+            },
+            properties: {
+              intensity: obs.severity // Use severity (1-5) as intensity weight
+            }
+          });
+        }
+      });
+
+      return {
+        type: 'FeatureCollection',
+        features: features
+      };
+    }
+
+    function addHeatMapLayer() {
+      if (!scoutingMap) return;
+
+      const heatMapData = generateHeatMapData();
+
+      // Remove existing heat map if present
+      if (scoutingMap.getLayer('pest-heatmap')) {
+        scoutingMap.removeLayer('pest-heatmap');
+      }
+      if (scoutingMap.getSource('pest-heatmap')) {
+        scoutingMap.removeSource('pest-heatmap');
+      }
+
+      // Add heat map source
+      scoutingMap.addSource('pest-heatmap', {
+        type: 'geojson',
+        data: heatMapData
+      });
+
+      // Add heat map layer
+      scoutingMap.addLayer({
+        id: 'pest-heatmap',
+        type: 'heatmap',
+        source: 'pest-heatmap',
+        paint: {
+          // Increase weight as severity increases
+          'heatmap-weight': [
+            'interpolate',
+            ['linear'],
+            ['get', 'intensity'],
+            1, 0.2,  // Low severity = low weight
+            5, 1.0   // High severity = high weight
+          ],
+          // Increase intensity as zoom level increases
+          'heatmap-intensity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 1,
+            15, 3
+          ],
+          // Color ramp for heatmap - green (low) to red (high)
+          'heatmap-color': [
+            'interpolate',
+            ['linear'],
+            ['heatmap-density'],
+            0, 'rgba(33,102,172,0)',
+            0.2, 'rgb(103,169,207)',
+            0.4, 'rgb(209,229,240)',
+            0.6, 'rgb(253,219,199)',
+            0.8, 'rgb(239,138,98)',
+            1, 'rgb(178,24,43)'
+          ],
+          // Adjust radius based on zoom level
+          'heatmap-radius': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            0, 20,
+            15, 40,
+            18, 60
+          ],
+          // Transition from heatmap to circle layer at high zoom
+          'heatmap-opacity': [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            14, 1,
+            16, 0.5
+          ]
+        }
+      }, 'field-outline'); // Add below field outline so it's visible
+    }
+
+    function removeHeatMapLayer() {
+      if (!scoutingMap) return;
+
+      if (scoutingMap.getLayer('pest-heatmap')) {
+        scoutingMap.removeLayer('pest-heatmap');
+      }
+      if (scoutingMap.getSource('pest-heatmap')) {
+        scoutingMap.removeSource('pest-heatmap');
+      }
+    }
+
+    function updateHeatMap() {
+      if (heatMapVisible && scoutingMap && scoutingMap.getSource('pest-heatmap')) {
+        const heatMapData = generateHeatMapData();
+        scoutingMap.getSource('pest-heatmap').setData(heatMapData);
       }
     }
 
