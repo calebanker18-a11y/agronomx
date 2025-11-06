@@ -97,10 +97,44 @@
         <h3 id="statExpenses">$0</h3>
         <p id="statExpensesPerAcre">Start logging activities</p>
       </div>
-      <div class="stat-card" style="background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);">
-        <div class="stat-label">📦 Inventory Value</div>
-        <h3 id="statInventory">$0</h3>
-        <p id="statInventoryCount">0 products</p>
+      <div class="stat-card" style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);" id="weatherCard">
+        <div class="stat-label">🌤️ Local Weather</div>
+        <h3 id="weatherTemp">--°F</h3>
+        <p id="weatherCondition">Loading weather...</p>
+      </div>
+    </div>
+
+    <!-- Weather Details & Activity Windows -->
+    <div class="card" style="margin-bottom: 40px;" id="weatherDetails">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 0;">Weather & Activity Windows</h2>
+        <button class="btn btn-secondary" onclick="refreshWeather()" style="padding: 10px 20px;">🔄 Refresh</button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;">
+        <!-- Current Conditions -->
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 12px;">
+          <h3 style="margin-bottom: 15px; font-size: 18px;">Current Conditions</h3>
+          <div id="currentWeatherDetails" style="font-size: 14px; line-height: 1.8;">
+            <div>Loading...</div>
+          </div>
+        </div>
+
+        <!-- Activity Windows -->
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 12px;">
+          <h3 style="margin-bottom: 15px; font-size: 18px;">Activity Windows</h3>
+          <div id="activityWindows" style="font-size: 14px; line-height: 1.8;">
+            <div>Loading...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3-Day Forecast -->
+      <div style="margin-top: 20px;">
+        <h3 style="margin-bottom: 15px; font-size: 18px;">3-Day Forecast</h3>
+        <div id="forecastContainer" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+          <div>Loading forecast...</div>
+        </div>
       </div>
     </div>
 
@@ -463,6 +497,11 @@
     let tempPins = []; // Track multiple pins in pin mode
     let tempPinMarkers = []; // Visual markers for pins
 
+    // Weather variables
+    let weatherData = null;
+    let forecastData = null;
+    let farmLocation = null; // { lat, lng }
+
     // Activity database
     const activityTypes = [
       'Field Cultivator', 'Chisel Plow', 'Disk', 'Vertical Tillage', 'No Tillage', 
@@ -582,6 +621,275 @@
           `;
         }).join('');
       }
+
+      // Load weather after dashboard updates
+      loadWeather();
+    }
+
+    // Weather Functions
+    async function loadWeather() {
+      // Get farm location from first field or browser geolocation
+      if (fields.length > 0 && fields[0].coordinates && fields[0].coordinates.length > 0) {
+        const coords = fields[0].coordinates[0];
+        farmLocation = { lat: coords[1], lng: coords[0] };
+      } else if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          farmLocation = { lat: position.coords.latitude, lng: position.coords.longitude };
+          fetchWeatherData();
+        }, () => {
+          // Default to central Iowa
+          farmLocation = { lat: 41.878, lng: -93.098 };
+          fetchWeatherData();
+        });
+        return;
+      } else {
+        // Default to central Iowa
+        farmLocation = { lat: 41.878, lng: -93.098 };
+      }
+
+      fetchWeatherData();
+    }
+
+    async function fetchWeatherData() {
+      if (!farmLocation) return;
+
+      try {
+        // Use Open-Meteo API (free, no API key required)
+        const currentUrl = `https://api.open-meteo.com/v1/forecast?latitude=${farmLocation.lat}&longitude=${farmLocation.lng}&current=temperature_2m,relative_humidity_2m,precipitation,rain,weather_code,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FChicago`;
+
+        const forecastUrl = `https://api.open-meteo.com/v1/forecast?latitude=${farmLocation.lat}&longitude=${farmLocation.lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max,wind_speed_10m_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America%2FChicago&forecast_days=3`;
+
+        const [currentResponse, forecastResponse] = await Promise.all([
+          fetch(currentUrl),
+          fetch(forecastUrl)
+        ]);
+
+        weatherData = await currentResponse.json();
+        forecastData = await forecastResponse.json();
+
+        updateWeatherDisplay();
+      } catch (error) {
+        console.error('Error fetching weather:', error);
+        document.getElementById('weatherTemp').textContent = 'N/A';
+        document.getElementById('weatherCondition').textContent = 'Unable to load weather';
+      }
+    }
+
+    function updateWeatherDisplay() {
+      if (!weatherData || !weatherData.current) return;
+
+      const current = weatherData.current;
+
+      // Update weather card
+      const temp = Math.round(current.temperature_2m);
+      document.getElementById('weatherTemp').textContent = `${temp}°F`;
+      document.getElementById('weatherCondition').textContent = getWeatherDescription(current.weather_code);
+
+      // Update detailed current conditions
+      const windDir = getWindDirection(current.wind_direction_10m);
+      document.getElementById('currentWeatherDetails').innerHTML = `
+        <div><strong>Temperature:</strong> ${temp}°F</div>
+        <div><strong>Humidity:</strong> ${Math.round(current.relative_humidity_2m)}%</div>
+        <div><strong>Wind:</strong> ${Math.round(current.wind_speed_10m)} mph ${windDir}</div>
+        <div><strong>Conditions:</strong> ${getWeatherDescription(current.weather_code)}</div>
+        ${current.precipitation > 0 ? `<div><strong>Precipitation:</strong> ${current.precipitation.toFixed(2)} in</div>` : ''}
+      `;
+
+      // Update activity windows
+      updateActivityWindows(current);
+
+      // Update forecast
+      updateForecast();
+    }
+
+    function updateActivityWindows(current) {
+      const windows = [];
+      const temp = Math.round(current.temperature_2m);
+      const windSpeed = Math.round(current.wind_speed_10m);
+      const humidity = Math.round(current.relative_humidity_2m);
+      const isRaining = current.precipitation > 0;
+
+      // Spraying window
+      if (!isRaining && windSpeed >= 3 && windSpeed <= 10 && temp >= 50 && temp <= 85) {
+        windows.push({
+          activity: '✅ Spraying',
+          status: 'IDEAL',
+          reason: 'Good wind, temp, and dry conditions',
+          color: '#4CAF50'
+        });
+      } else if (isRaining) {
+        windows.push({
+          activity: '❌ Spraying',
+          status: 'NOT RECOMMENDED',
+          reason: 'Precipitation present',
+          color: '#f44336'
+        });
+      } else if (windSpeed > 10) {
+        windows.push({
+          activity: '⚠️ Spraying',
+          status: 'CAUTION',
+          reason: `Wind too high (${windSpeed} mph)`,
+          color: '#FF9800'
+        });
+      } else if (windSpeed < 3) {
+        windows.push({
+          activity: '⚠️ Spraying',
+          status: 'CAUTION',
+          reason: 'Wind too low for spray drift',
+          color: '#FF9800'
+        });
+      }
+
+      // Planting window
+      if (!isRaining && temp >= 50 && temp <= 85 && humidity < 80) {
+        windows.push({
+          activity: '✅ Planting',
+          status: 'GOOD',
+          reason: 'Suitable conditions',
+          color: '#4CAF50'
+        });
+      } else if (isRaining) {
+        windows.push({
+          activity: '❌ Planting',
+          status: 'WAIT',
+          reason: 'Too wet',
+          color: '#f44336'
+        });
+      }
+
+      // Harvesting window
+      if (!isRaining && humidity < 18) {
+        windows.push({
+          activity: '✅ Harvesting',
+          status: 'IDEAL',
+          reason: `Low moisture (${humidity}%)`,
+          color: '#4CAF50'
+        });
+      } else if (humidity < 22 && !isRaining) {
+        windows.push({
+          activity: '✅ Harvesting',
+          status: 'GOOD',
+          reason: `Acceptable moisture (${humidity}%)`,
+          color: '#4CAF50'
+        });
+      } else if (isRaining) {
+        windows.push({
+          activity: '❌ Harvesting',
+          status: 'NOT RECOMMENDED',
+          reason: 'Wet conditions',
+          color: '#f44336'
+        });
+      }
+
+      // Tillage window
+      if (!isRaining && humidity < 70) {
+        windows.push({
+          activity: '✅ Tillage',
+          status: 'GOOD',
+          reason: 'Dry enough for field work',
+          color: '#4CAF50'
+        });
+      } else {
+        windows.push({
+          activity: '⚠️ Tillage',
+          status: 'WAIT',
+          reason: 'Soil may be too wet',
+          color: '#FF9800'
+        });
+      }
+
+      document.getElementById('activityWindows').innerHTML = windows.map(w => `
+        <div style="margin-bottom: 12px; padding: 10px; background: white; border-radius: 6px; border-left: 4px solid ${w.color};">
+          <div style="font-weight: 600; color: ${w.color};">${w.activity}</div>
+          <div style="font-size: 13px; color: #666;">${w.reason}</div>
+        </div>
+      `).join('');
+    }
+
+    function updateForecast() {
+      if (!forecastData || !forecastData.daily) return;
+
+      const daily = forecastData.daily;
+      const forecastHtml = [];
+
+      for (let i = 0; i < Math.min(3, daily.time.length); i++) {
+        const date = new Date(daily.time[i]);
+        const dayName = i === 0 ? 'Today' : i === 1 ? 'Tomorrow' : date.toLocaleDateString('en-US', { weekday: 'short' });
+
+        forecastHtml.push(`
+          <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; text-align: center;">
+            <div style="font-weight: 600; margin-bottom: 8px;">${dayName}</div>
+            <div style="font-size: 28px; margin: 10px 0;">${getWeatherEmoji(daily.weather_code[i])}</div>
+            <div style="font-size: 16px; font-weight: 600; color: #f44336;">${Math.round(daily.temperature_2m_max[i])}°</div>
+            <div style="font-size: 14px; color: #2196F3;">${Math.round(daily.temperature_2m_min[i])}°</div>
+            <div style="font-size: 12px; color: #666; margin-top: 8px;">${getWeatherDescription(daily.weather_code[i])}</div>
+            ${daily.precipitation_sum[i] > 0 ? `<div style="font-size: 12px; color: #2196F3; margin-top: 4px;">💧 ${daily.precipitation_sum[i].toFixed(1)}"</div>` : ''}
+            <div style="font-size: 12px; color: #666; margin-top: 4px;">💨 ${Math.round(daily.wind_speed_10m_max[i])} mph</div>
+          </div>
+        `);
+      }
+
+      document.getElementById('forecastContainer').innerHTML = forecastHtml.join('');
+    }
+
+    function getWeatherDescription(code) {
+      const descriptions = {
+        0: 'Clear',
+        1: 'Mainly Clear',
+        2: 'Partly Cloudy',
+        3: 'Overcast',
+        45: 'Foggy',
+        48: 'Foggy',
+        51: 'Light Drizzle',
+        53: 'Drizzle',
+        55: 'Heavy Drizzle',
+        61: 'Light Rain',
+        63: 'Rain',
+        65: 'Heavy Rain',
+        71: 'Light Snow',
+        73: 'Snow',
+        75: 'Heavy Snow',
+        77: 'Snow Grains',
+        80: 'Light Showers',
+        81: 'Showers',
+        82: 'Heavy Showers',
+        85: 'Light Snow Showers',
+        86: 'Snow Showers',
+        95: 'Thunderstorm',
+        96: 'Thunderstorm',
+        99: 'Severe Thunderstorm'
+      };
+      return descriptions[code] || 'Unknown';
+    }
+
+    function getWeatherEmoji(code) {
+      if (code === 0) return '☀️';
+      if (code <= 2) return '🌤️';
+      if (code === 3) return '☁️';
+      if (code === 45 || code === 48) return '🌫️';
+      if (code >= 51 && code <= 55) return '🌦️';
+      if (code >= 61 && code <= 65) return '🌧️';
+      if (code >= 71 && code <= 77) return '🌨️';
+      if (code >= 80 && code <= 82) return '🌧️';
+      if (code >= 85 && code <= 86) return '🌨️';
+      if (code >= 95) return '⛈️';
+      return '🌤️';
+    }
+
+    function getWindDirection(degrees) {
+      const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+      const index = Math.round(degrees / 45) % 8;
+      return directions[index];
+    }
+
+    function refreshWeather() {
+      document.getElementById('weatherTemp').textContent = '--°F';
+      document.getElementById('weatherCondition').textContent = 'Refreshing...';
+      document.getElementById('currentWeatherDetails').innerHTML = '<div>Loading...</div>';
+      document.getElementById('activityWindows').innerHTML = '<div>Loading...</div>';
+      document.getElementById('forecastContainer').innerHTML = '<div>Loading...</div>';
+
+      fetchWeatherData();
     }
 
     // Map functions
