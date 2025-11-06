@@ -311,10 +311,12 @@
         
         <!-- Scouting Controls -->
         <div style="position: absolute; top: 10px; left: 10px; z-index: 1; display: flex; flex-direction: column; gap: 10px;">
-          <button id="pinModeBtn" class="btn" onclick="togglePinMode()" style="background: #FF5722;">📍 Drop Pin</button>
+          <button id="pinModeBtn" class="btn" onclick="togglePinMode()" style="background: #FF5722;">📍 Drop Pins</button>
           <button id="zoneModeBtn" class="btn" onclick="toggleZoneMode()" style="background: #FF9800;">🟢 Draw Zone</button>
           <button id="fieldModeBtn" class="btn" onclick="markWholeField()" style="background: #4CAF50;">🌾 Whole Field</button>
           <button id="heatMapBtn" class="btn btn-secondary" onclick="toggleHeatMap()" style="background: #9C27B0;">🔥 Heat Map</button>
+          <button id="undoPestBtn" class="btn btn-warning hidden" onclick="undoLastPestPoint()">↶ Undo</button>
+          <button id="completePestBtn" class="btn hidden" onclick="completePestMarking()" style="background: #4CAF50;">✓ Complete</button>
         </div>
 
         <!-- Active Pest Log Form -->
@@ -402,6 +404,8 @@
     let zoneMarkers = [];
     let tempPestLocation = null;
     let heatMapVisible = false;
+    let tempPins = []; // Track multiple pins in pin mode
+    let tempPinMarkers = []; // Visual markers for pins
 
     // Activity database
     const activityTypes = [
@@ -1301,71 +1305,94 @@
     }
 
     function togglePinMode() {
-      scoutingMode = scoutingMode === 'pin' ? null : 'pin';
-      updateScoutingButtons();
-      
       if (scoutingMode === 'pin') {
-        scoutingMap.getCanvas().style.cursor = 'crosshair';
-        scoutingMap.once('click', (e) => {
-          tempPestLocation = { type: 'pin', coordinates: [e.lngLat.lng, e.lngLat.lat] };
-          showPestLogForm();
-        });
-      } else {
+        // Exit pin mode
+        scoutingMode = null;
         scoutingMap.getCanvas().style.cursor = '';
+        scoutingMap.off('click', handlePinClick);
+        clearTempMarkers();
+      } else {
+        // Enter pin mode
+        if (scoutingMode === 'zone') {
+          // Exit zone mode first
+          toggleZoneMode();
+        }
+        scoutingMode = 'pin';
+        tempPins = [];
+        scoutingMap.getCanvas().style.cursor = 'crosshair';
+        scoutingMap.on('click', handlePinClick);
       }
+      updateScoutingButtons();
+      updatePestControlButtons();
+    }
+
+    function handlePinClick(e) {
+      const point = [e.lngLat.lng, e.lngLat.lat];
+      tempPins.push(point);
+
+      // Add visual marker
+      const el = document.createElement('div');
+      el.style.width = '24px';
+      el.style.height = '24px';
+      el.style.borderRadius = '50%';
+      el.style.backgroundColor = '#FF5722';
+      el.style.border = '3px solid white';
+      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      el.style.cursor = 'pointer';
+
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat(point)
+        .addTo(scoutingMap);
+
+      tempPinMarkers.push(marker);
+      updatePestControlButtons();
     }
 
     function toggleZoneMode() {
-      scoutingMode = scoutingMode === 'zone' ? null : 'zone';
-      updateScoutingButtons();
-      
       if (scoutingMode === 'zone') {
-        scoutingMap.getCanvas().style.cursor = 'crosshair';
-        zonePoints = [];
-        zoneMarkers = [];
-        alert('Click on the map to drop points for the pest zone. Click the first point again to close the zone.');
-        
-        scoutingMap.on('click', handleZoneClick);
-      } else {
+        // Exit zone mode
+        scoutingMode = null;
         scoutingMap.getCanvas().style.cursor = '';
         scoutingMap.off('click', handleZoneClick);
-        clearZoneDrawing();
+        clearTempMarkers();
+      } else {
+        // Enter zone mode
+        if (scoutingMode === 'pin') {
+          // Exit pin mode first
+          togglePinMode();
+        }
+        scoutingMode = 'zone';
+        zonePoints = [];
+        zoneMarkers = [];
+        scoutingMap.getCanvas().style.cursor = 'crosshair';
+        scoutingMap.on('click', handleZoneClick);
       }
+      updateScoutingButtons();
+      updatePestControlButtons();
     }
 
     function handleZoneClick(e) {
       const point = [e.lngLat.lng, e.lngLat.lat];
-      
-      // Check if clicking near first point to close zone
-      if (zonePoints.length >= 3) {
-        const firstPoint = zonePoints[0];
-        const distance = turf.distance(turf.point(point), turf.point(firstPoint), { units: 'meters' });
-        
-        if (distance < 10) { // Within 10 meters of first point
-          tempPestLocation = { type: 'zone', coordinates: [...zonePoints] };
-          scoutingMap.off('click', handleZoneClick);
-          clearZoneDrawing();
-          showPestLogForm();
-          return;
-        }
-      }
-      
+
       zonePoints.push(point);
-      
-      // Add marker
+
+      // Add larger, more visible marker
       const el = document.createElement('div');
-      el.style.width = '12px';
-      el.style.height = '12px';
+      el.style.width = '20px';
+      el.style.height = '20px';
       el.style.borderRadius = '50%';
-      el.style.backgroundColor = '#FF5722';
-      el.style.border = '2px solid white';
-      
+      el.style.backgroundColor = '#FF9800';
+      el.style.border = '3px solid white';
+      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      el.style.cursor = 'pointer';
+
       const marker = new mapboxgl.Marker(el)
         .setLngLat(point)
         .addTo(scoutingMap);
-      
+
       zoneMarkers.push(marker);
       drawZonePreview();
+      updatePestControlButtons();
     }
 
     function drawZonePreview() {
@@ -1416,19 +1443,6 @@
       }
     }
 
-    function clearZoneDrawing() {
-      zoneMarkers.forEach(m => m.remove());
-      zoneMarkers = [];
-      zonePoints = [];
-      
-      if (scoutingMap.getLayer('zone-preview')) {
-        scoutingMap.removeLayer('zone-preview');
-      }
-      if (scoutingMap.getSource('zone-preview')) {
-        scoutingMap.removeSource('zone-preview');
-      }
-    }
-
     function markWholeField() {
       tempPestLocation = { type: 'field', coordinates: currentScoutingField.coordinates };
       showPestLogForm();
@@ -1437,6 +1451,66 @@
     function updateScoutingButtons() {
       document.getElementById('pinModeBtn').style.background = scoutingMode === 'pin' ? '#d84315' : '#FF5722';
       document.getElementById('zoneModeBtn').style.background = scoutingMode === 'zone' ? '#EF6C00' : '#FF9800';
+    }
+
+    function updatePestControlButtons() {
+      const hasPoints = (scoutingMode === 'pin' && tempPins.length > 0) ||
+                       (scoutingMode === 'zone' && zonePoints.length > 0);
+      const canComplete = (scoutingMode === 'pin' && tempPins.length > 0) ||
+                         (scoutingMode === 'zone' && zonePoints.length >= 3);
+
+      document.getElementById('undoPestBtn').classList.toggle('hidden', !hasPoints);
+      document.getElementById('completePestBtn').classList.toggle('hidden', !canComplete);
+    }
+
+    function undoLastPestPoint() {
+      if (scoutingMode === 'pin' && tempPins.length > 0) {
+        // Remove last pin
+        tempPins.pop();
+        const marker = tempPinMarkers.pop();
+        marker.remove();
+      } else if (scoutingMode === 'zone' && zonePoints.length > 0) {
+        // Remove last zone point
+        zonePoints.pop();
+        const marker = zoneMarkers.pop();
+        marker.remove();
+        drawZonePreview();
+      }
+      updatePestControlButtons();
+    }
+
+    function completePestMarking() {
+      if (scoutingMode === 'pin' && tempPins.length > 0) {
+        // Save pins as multiple observations or single multi-pin observation
+        tempPestLocation = { type: 'pins', coordinates: [...tempPins] };
+        showPestLogForm();
+      } else if (scoutingMode === 'zone' && zonePoints.length >= 3) {
+        // Save zone
+        tempPestLocation = { type: 'zone', coordinates: [...zonePoints] };
+        showPestLogForm();
+      }
+    }
+
+    function clearTempMarkers() {
+      // Clear pin markers
+      tempPinMarkers.forEach(m => m.remove());
+      tempPinMarkers = [];
+      tempPins = [];
+
+      // Clear zone markers
+      zoneMarkers.forEach(m => m.remove());
+      zoneMarkers = [];
+      zonePoints = [];
+
+      // Clear zone preview
+      if (scoutingMap && scoutingMap.getLayer('zone-preview')) {
+        scoutingMap.removeLayer('zone-preview');
+      }
+      if (scoutingMap && scoutingMap.getSource('zone-preview')) {
+        scoutingMap.removeSource('zone-preview');
+      }
+
+      updatePestControlButtons();
     }
 
     function showPestLogForm() {
@@ -1453,7 +1527,7 @@
       tempPestLocation = null;
       scoutingMode = null;
       updateScoutingButtons();
-      clearZoneDrawing();
+      clearTempMarkers();
     }
 
     function updateSeverityLabel(value) {
@@ -1474,40 +1548,93 @@
         return;
       }
 
-      const observation = {
-        id: Date.now(),
-        fieldId: currentScoutingField.id,
-        fieldName: currentScoutingField.name,
-        pestType: pestType,
-        severity: severity,
-        notes: notes,
-        location: tempPestLocation,
-        timestamp: new Date().toISOString(),
-        photo: null
-      };
+      // Handle multiple pins - create separate observation for each pin
+      if (tempPestLocation.type === 'pins') {
+        const timestamp = new Date().toISOString();
+        const baseId = Date.now();
 
-      // Handle photo if uploaded
-      if (photoInput.files && photoInput.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          observation.photo = e.target.result;
+        if (photoInput.files && photoInput.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            const photoData = e.target.result;
+            tempPestLocation.coordinates.forEach((pinCoords, index) => {
+              pestObservations.push({
+                id: baseId + index,
+                fieldId: currentScoutingField.id,
+                fieldName: currentScoutingField.name,
+                pestType: pestType,
+                severity: severity,
+                notes: notes,
+                location: { type: 'pin', coordinates: pinCoords },
+                timestamp: timestamp,
+                photo: photoData
+              });
+            });
+            finalizePestObservation();
+          };
+          reader.readAsDataURL(photoInput.files[0]);
+        } else {
+          tempPestLocation.coordinates.forEach((pinCoords, index) => {
+            pestObservations.push({
+              id: baseId + index,
+              fieldId: currentScoutingField.id,
+              fieldName: currentScoutingField.name,
+              pestType: pestType,
+              severity: severity,
+              notes: notes,
+              location: { type: 'pin', coordinates: pinCoords },
+              timestamp: timestamp,
+              photo: null
+            });
+          });
+          finalizePestObservation();
+        }
+      } else {
+        // Single observation (zone or whole field)
+        const observation = {
+          id: Date.now(),
+          fieldId: currentScoutingField.id,
+          fieldName: currentScoutingField.name,
+          pestType: pestType,
+          severity: severity,
+          notes: notes,
+          location: tempPestLocation,
+          timestamp: new Date().toISOString(),
+          photo: null
+        };
+
+        // Handle photo if uploaded
+        if (photoInput.files && photoInput.files[0]) {
+          const reader = new FileReader();
+          reader.onload = function(e) {
+            observation.photo = e.target.result;
+            pestObservations.push(observation);
+            finalizePestObservation();
+          };
+          reader.readAsDataURL(photoInput.files[0]);
+        } else {
           pestObservations.push(observation);
           finalizePestObservation();
-        };
-        reader.readAsDataURL(photoInput.files[0]);
-      } else {
-        pestObservations.push(observation);
-        finalizePestObservation();
+        }
       }
     }
 
     function finalizePestObservation() {
+      const count = tempPestLocation && tempPestLocation.type === 'pins'
+        ? tempPestLocation.coordinates.length
+        : 1;
+
       saveData(); // Save to localStorage
+      clearTempMarkers(); // Clear temp markers before canceling
       cancelPestLog();
       loadPestMarkers();
       renderFieldPestObservations();
       updateHeatMap(); // Update heat map with new observation
-      alert('Pest observation saved!');
+
+      const message = count > 1
+        ? `${count} pest observations saved!`
+        : 'Pest observation saved!';
+      alert(message);
     }
 
     function loadPestMarkers() {
