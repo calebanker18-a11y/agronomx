@@ -1,0 +1,1571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgronomX - Farm Management</title>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+  <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+  <script src='https://cdn.jsdelivr.net/npm/@turf/turf@6.5.0/turf.min.js'></script>
+  <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Exo 2', sans-serif; background: #f5f5f5; }
+    .header { padding: 20px; text-align: center; border-bottom: 1px solid #e0e0e0; background: white; }
+    .header img { height: 60px; }
+    .container { max-width: 1400px; margin: 0 auto; padding: 30px 20px; }
+    .btn { padding: 14px 24px; background: #4CAF50; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; font-family: 'Exo 2', sans-serif; }
+    .btn:hover { background: #45a049; }
+    .btn-secondary { background: #2196F3; }
+    .btn-secondary:hover { background: #1976D2; }
+    .btn-danger { background: #f44336; }
+    .btn-danger:hover { background: #d32f2f; }
+    .btn-warning { background: #FF9800; }
+    .btn-warning:hover { background: #F57C00; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 40px; }
+    .stat-card { padding: 30px; border-radius: 16px; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+    .stat-card h3 { font-size: 48px; font-weight: 700; margin: 8px 0; }
+    .stat-card p { font-size: 16px; opacity: 0.9; }
+    .stat-label { font-size: 14px; opacity: 0.9; margin-bottom: 8px; font-weight: 500; }
+    .action-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 40px; }
+    .action-btn { padding: 20px; border-radius: 12px; font-size: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    .form-group { margin-bottom: 20px; }
+    .form-group label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; color: #555; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 16px; font-family: 'Exo 2', sans-serif; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px; }
+    .field-card, .product-card { background: #f9f9f9; padding: 20px; border-radius: 12px; border-left: 4px solid #4CAF50; margin-bottom: 15px; }
+    .menu { position: relative; display: inline-block; }
+    .menu-btn { background: none; border: none; font-size: 20px; cursor: pointer; padding: 5px 10px; }
+    .menu-content { display: none; position: absolute; right: 0; background: white; border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); z-index: 10; min-width: 120px; }
+    .menu-content.show { display: block; }
+    .menu-item { padding: 10px 15px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+    .menu-item:hover { background: #f5f5f5; }
+    .menu-item.danger { color: #d32f2f; }
+    .menu-item.danger:hover { background: #ffebee; }
+    .suggestion-box { position: absolute; background: white; border: 1px solid #ddd; border-radius: 6px; max-height: 300px; overflow-y: auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10; width: 100%; margin-top: 4px; }
+    .suggestion-item { padding: 12px; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+    .suggestion-item:hover { background: #f5f5f5; }
+    .hidden { display: none; }
+    
+    /* Map styles */
+    #map { width: 100%; height: 500px; border-radius: 12px; margin-bottom: 20px; }
+    .map-controls { position: absolute; top: 10px; left: 10px; z-index: 1; display: flex; flex-direction: column; gap: 10px; }
+    .map-info { position: absolute; top: 10px; right: 10px; z-index: 1; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); min-width: 200px; }
+    .map-info h4 { margin-bottom: 10px; font-size: 16px; color: #333; }
+    .map-info .acres { font-size: 32px; font-weight: 700; color: #4CAF50; margin: 10px 0; }
+    .map-info .points { font-size: 14px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="https://i.imgur.com/KtJ8tMD.png" alt="AgronomX" style="height: 60px;">
+  </div>
+
+  <!-- Login Screen -->
+  <div id="loginScreen" class="container" style="max-width: 400px; margin-top: 60px;">
+    <h1 style="font-size: 32px; font-weight: 600; color: #333; text-align: center; margin-bottom: 40px;">Welcome Back</h1>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@farm.com">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+    </div>
+    <button class="btn" style="width: 100%;" onclick="login()">Log In</button>
+  </div>
+
+  <!-- Dashboard Screen -->
+  <div id="dashboardScreen" class="container hidden">
+    <h1 style="font-size: 36px; font-weight: 700; color: #333; margin-bottom: 10px;">Dashboard</h1>
+    <p style="color: #666; margin-bottom: 30px; font-size: 16px;">Welcome back! Here's your farm overview.</p>
+
+    <div class="stat-grid">
+      <div class="stat-card" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">
+        <div class="stat-label">🌾 Total Fields</div>
+        <h3 id="statFields">0</h3>
+        <p id="statAcres">Add your first field</p>
+      </div>
+      <div class="stat-card" id="statProfitCard" style="background: linear-gradient(135deg, #9E9E9E 0%, #757575 100%);">
+        <div class="stat-label">💰 Net Profit</div>
+        <h3 id="statProfit">—</h3>
+        <p id="statROI">Log harvest to see profit</p>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);">
+        <div class="stat-label">📊 Total Expenses</div>
+        <h3 id="statExpenses">$0</h3>
+        <p id="statExpensesPerAcre">Start logging activities</p>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);">
+        <div class="stat-label">📦 Inventory Value</div>
+        <h3 id="statInventory">$0</h3>
+        <p id="statInventoryCount">0 products</p>
+      </div>
+    </div>
+
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Quick Actions</h2>
+    <div class="action-grid">
+      <button class="btn action-btn" onclick="showScreen('log')">📝 Log Activity</button>
+      <button class="btn btn-secondary action-btn" onclick="showScreen('fields')">🌾 Manage Fields</button>
+      <button class="btn action-btn" style="background: #FF5722;" onclick="showScreen('scouting')">🐛 Pest Scouting</button>
+      <button class="btn action-btn" style="background: #FF9800;" onclick="showScreen('inventory')">📦 Manage Inventory</button>
+      <button class="btn action-btn" style="background: #9C27B0;" onclick="showScreen('insights')">📈 View Insights</button>
+    </div>
+
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Recent Activity</h2>
+    <div id="recentActivity" class="card">
+      <p style="text-align: center; color: #999; padding: 20px;">No activities logged yet. Click "Log Activity" to get started!</p>
+    </div>
+
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin-bottom: 20px;">Pest Scouting History</h2>
+    <div id="pestHistory" class="card">
+      <p style="text-align: center; color: #999; padding: 20px;">No pest scouting yet. Click "Pest Scouting" to start monitoring!</p>
+    </div>
+  </div>
+
+  <!-- Log Activity Screen -->
+  <div id="logScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">Log Activity</h2>
+    
+    <div class="card" style="max-width: 600px;">
+      <div class="form-group" style="position: relative;">
+        <label>Activity Type</label>
+        <input type="text" id="activityType" placeholder="Start typing..." oninput="filterActivities(this.value)">
+        <div id="activitySuggestions" class="suggestion-box hidden"></div>
+      </div>
+      
+      <div id="fieldSelectGroup" class="form-group hidden" style="position: relative;">
+        <label>Field</label>
+        <input type="text" id="fieldSelect" placeholder="Type to search fields..." oninput="filterFields(this.value)">
+        <div id="fieldSuggestions" class="suggestion-box hidden"></div>
+      </div>
+
+      <div id="dateGroup" class="form-group hidden">
+        <label>Date</label>
+        <input type="date" id="activityDate">
+      </div>
+
+      <div id="productGroup" class="form-group hidden">
+        <label>Product</label>
+        <select id="productSelect"></select>
+      </div>
+
+      <div id="rateGroup" class="form-group hidden">
+        <label>Application Rate</label>
+        <div style="display: flex; gap: 10px;">
+          <input type="number" id="applicationRate" placeholder="13.7" style="flex: 1;">
+          <select id="rateUnit">
+            <option value="oz/acre">oz/acre</option>
+            <option value="gal/acre">gal/acre</option>
+            <option value="lb/acre">lb/acre</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="seedGroup" class="form-group hidden">
+        <div class="form-group">
+          <label>Variety</label>
+          <input type="text" id="seedVariety" placeholder="e.g., DeKalb 62-54">
+        </div>
+        <div class="form-group">
+          <label>Population (seeds/acre)</label>
+          <input type="number" id="seedPopulation" placeholder="e.g., 32000">
+        </div>
+      </div>
+
+      <div id="harvestGroup" class="form-group hidden" style="background: #e8f5e9; padding: 20px; border-radius: 8px;">
+        <h3 style="margin-bottom: 15px; color: #2e7d32;">Revenue Information</h3>
+        <div class="form-group">
+          <label>Total Bushels</label>
+          <input type="number" id="totalBushels" placeholder="e.g., 8500">
+        </div>
+        <div class="form-group">
+          <label>Price per Bushel ($)</label>
+          <input type="number" step="0.01" id="pricePerBushel" placeholder="e.g., 4.25">
+        </div>
+        <div id="harvestCalc" style="padding: 12px; background: white; border-radius: 6px; margin-top: 10px; font-size: 14px; display: none;"></div>
+      </div>
+
+      <div id="fuelGroup" class="form-group hidden">
+        <label>Fuel Cost ($) - Optional</label>
+        <input type="number" step="0.01" id="fuelCost" placeholder="e.g., 45.00">
+      </div>
+
+      <button id="logActivityBtn" class="btn hidden" style="width: 100%; margin-top: 20px;" onclick="logActivity()">Log Activity</button>
+    </div>
+  </div>
+
+  <!-- Manage Fields Screen -->
+  <div id="fieldsScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">Manage Fields</h2>
+    
+    <button class="btn" onclick="showAddField()" style="margin-bottom: 20px;">+ Create New Field</button>
+
+    <!-- Map Field Creation -->
+    <div id="addFieldForm" class="card hidden">
+      <h3 style="margin-bottom: 15px;">Create Field on Map</h3>
+      <div class="form-group">
+        <label>Field Name</label>
+        <input type="text" id="newFieldName" placeholder="e.g., Red Road 40">
+      </div>
+      
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; color: #555;">Import Shapefile (Optional)</label>
+        <input type="file" id="shapefileInput" accept=".zip,.shp,.dbf,.shx" style="display: none;" onchange="handleShapefileUpload(event)">
+        <button class="btn btn-secondary" onclick="document.getElementById('shapefileInput').click()">📁 Upload Shapefile</button>
+        <p style="font-size: 12px; color: #666; margin-top: 5px;">Upload a .zip file containing .shp, .shx, and .dbf files</p>
+      </div>
+      
+      <div style="position: relative;">
+        <div id="map"></div>
+        <div class="map-controls">
+          <button id="undoBtn" class="btn btn-warning hidden" onclick="undoLastPoint()">↶ Undo</button>
+          <button id="createFieldBtn" class="btn hidden" onclick="createFieldFromMap()">✓ Create Field</button>
+          <button class="btn btn-danger" onclick="cancelAddField()">✕ Cancel</button>
+        </div>
+        <div class="map-info">
+          <h4>Field Information</h4>
+          <div class="acres" id="mapAcres">0.00</div>
+          <div class="points" id="mapPoints">Drop points to mark boundary</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="fieldsList"></div>
+  </div>
+
+  <!-- Manage Inventory Screen -->
+  <div id="inventoryScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">Manage Inventory</h2>
+    
+    <button class="btn" onclick="showAddProduct()" style="margin-bottom: 20px;">+ Add Product</button>
+
+    <div id="addProductForm" class="card hidden" style="max-width: 500px;">
+      <h3 style="margin-bottom: 15px;">New Product</h3>
+      <div class="form-group">
+        <label>Product Name</label>
+        <input type="text" id="newProductName" placeholder="e.g., Miravis Neo">
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <div class="form-group" style="flex: 1;">
+          <label>Amount</label>
+          <input type="number" id="newProductAmount" placeholder="e.g., 5">
+        </div>
+        <div class="form-group" style="flex: 1;">
+          <label>Unit</label>
+          <select id="newProductUnit">
+            <option value="gallon">Gallon</option>
+            <option value="ounce">Ounce</option>
+            <option value="pound">Pound</option>
+            <option value="ton">Ton</option>
+            <option value="bag">Bag</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <div class="form-group" style="flex: 1;">
+          <label>Total Cost</label>
+          <input type="number" step="0.01" id="newProductTotalCost" placeholder="$250" oninput="calcCostPerUnit()">
+        </div>
+        <div style="padding: 0 10px; margin-top: 20px;">OR</div>
+        <div class="form-group" style="flex: 1;">
+          <label>Cost Per Unit</label>
+          <input type="number" step="0.01" id="newProductCostPerUnit" placeholder="$50" oninput="calcTotalCost()">
+        </div>
+      </div>
+      <button class="btn" onclick="addProduct()" style="margin-right: 10px;">Add Product</button>
+      <button class="btn btn-danger" onclick="cancelAddProduct()">Cancel</button>
+    </div>
+
+    <div id="inventoryList"></div>
+  </div>
+
+  <!-- Pest Scouting Screen -->
+  <div id="scoutingScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">Pest Scouting</h2>
+    
+    <!-- Field Selection -->
+    <div id="scoutingFieldSelect" class="card" style="max-width: 600px;">
+      <h3 style="margin-bottom: 15px;">Select Field to Scout</h3>
+      <div id="scoutingFieldsList"></div>
+    </div>
+
+    <!-- Scouting Map Interface -->
+    <div id="scoutingMapView" class="card hidden">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h3 id="scoutingFieldName">Field Name</h3>
+        <button class="btn btn-secondary" onclick="backToFieldSelection()">Change Field</button>
+      </div>
+      
+      <div style="position: relative;">
+        <div id="scoutingMap" style="width: 100%; height: 600px; border-radius: 12px;"></div>
+        
+        <!-- Scouting Controls -->
+        <div style="position: absolute; top: 10px; left: 10px; z-index: 1; display: flex; flex-direction: column; gap: 10px;">
+          <button id="pinModeBtn" class="btn" onclick="togglePinMode()" style="background: #FF5722;">📍 Drop Pin</button>
+          <button id="zoneModeBtn" class="btn" onclick="toggleZoneMode()" style="background: #FF9800;">🟢 Draw Zone</button>
+          <button id="fieldModeBtn" class="btn" onclick="markWholeField()" style="background: #4CAF50;">🌾 Whole Field</button>
+        </div>
+
+        <!-- Active Pest Log Form -->
+        <div id="pestLogForm" class="hidden" style="position: absolute; top: 10px; right: 10px; z-index: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); max-width: 300px;">
+          <h4 style="margin-bottom: 15px;">Log Pest Observation</h4>
+          
+          <div class="form-group">
+            <label>Pest Type</label>
+            <input type="text" id="pestType" placeholder="e.g., Japanese Beetle" list="commonPests">
+            <datalist id="commonPests">
+              <option value="Japanese Beetle">
+              <option value="Corn Rootworm">
+              <option value="Aphids">
+              <option value="Armyworm">
+              <option value="Cutworm">
+              <option value="Spider Mites">
+              <option value="Stink Bugs">
+              <option value="White Grubs">
+              <option value="Wireworms">
+              <option value="Western Bean Cutworm">
+            </datalist>
+          </div>
+
+          <div class="form-group">
+            <label>Severity</label>
+            <input type="range" id="pestSeverity" min="1" max="5" value="3" oninput="updateSeverityLabel(this.value)" style="width: 100%;">
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: #666;">
+              <span>Low</span>
+              <span id="severityLabel" style="font-weight: 600; color: #FF9800;">Medium</span>
+              <span>High</span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Photo (Optional)</label>
+            <input type="file" id="pestPhoto" accept="image/*" capture="environment" style="font-size: 14px; padding: 8px;">
+          </div>
+
+          <div class="form-group">
+            <label>Notes (Optional)</label>
+            <textarea id="pestNotes" rows="3" placeholder="Additional observations..." style="width: 100%; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-family: 'Exo 2', sans-serif;"></textarea>
+          </div>
+
+          <button class="btn" onclick="savePestObservation()" style="width: 100%; margin-bottom: 10px;">Save Observation</button>
+          <button class="btn btn-danger" onclick="cancelPestLog()" style="width: 100%;">Cancel</button>
+        </div>
+      </div>
+
+      <!-- Pest Observations List -->
+      <div id="fieldPestList" style="margin-top: 20px;">
+        <h4 style="margin-bottom: 10px;">Recent Observations</h4>
+        <div id="pestObservationsList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Insights Screen -->
+  <div id="insightsScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 28px; font-weight: 600; color: #333; margin: 30px 0 20px; text-align: center;">Insights</h2>
+    <div id="insightsContent"></div>
+  </div>
+
+  <script>
+    mapboxgl.accessToken = 'pk.eyJ1IjoiY2FsZWIxMDAyIiwiYSI6ImNtaG1uNXh3NTBkcmEyaXE0ZG15aHllZGMifQ.t1Y6b25l7tzkiClKXf_lBA';
+    
+    let currentUser = null;
+    let fields = [];
+    let inventory = [];
+    let activities = [];
+    let activityLogs = [];
+    
+    // Map variables
+    let map = null;
+    let mapPoints = [];
+    let polygonLayer = null;
+    let markersLayer = [];
+
+    // Pest scouting variables
+    let scoutingMap = null;
+    let currentScoutingField = null;
+    let pestObservations = [];
+    let scoutingMode = null; // 'pin', 'zone', or 'field'
+    let zonePoints = [];
+    let zoneMarkers = [];
+    let tempPestLocation = null;
+
+    // Activity database
+    const activityTypes = [
+      'Field Cultivator', 'Chisel Plow', 'Disk', 'Vertical Tillage', 'No Tillage', 
+      'Ripper', 'Moldboard Plow', 'Strip Tillage', 'Harrow',
+      'Fungicide Application', 'Herbicide Application', 'Insecticide Application',
+      'Pre-Emergent Herbicide', 'Post-Emergent Herbicide',
+      'Nitrogen Application', 'Phosphorus Application', 'Anhydrous Ammonia',
+      'Liquid Nitrogen', 'Dry Fertilizer', 'Starter Fertilizer',
+      'Corn Planting', 'Soybean Planting', 'Wheat Planting',
+      'Corn Harvest', 'Soybean Harvest', 'Wheat Harvest',
+      'Pest Scouting', 'Disease Scouting', 'Weed Scouting'
+    ];
+
+    // Load data from localStorage
+    function loadData() {
+      const saved = localStorage.getItem('agronomx_data');
+      if (saved) {
+        const data = JSON.parse(saved);
+        fields = data.fields || [];
+        inventory = data.inventory || [];
+        activityLogs = data.activityLogs || [];
+        pestObservations = data.pestObservations || [];
+      }
+    }
+
+    // Save data to localStorage
+    function saveData() {
+      const data = {
+        fields: fields,
+        inventory: inventory,
+        activityLogs: activityLogs,
+        pestObservations: pestObservations
+      };
+      localStorage.setItem('agronomx_data', JSON.stringify(data));
+    }
+
+    function login() {
+      const email = document.getElementById('loginEmail').value;
+      const password = document.getElementById('loginPassword').value;
+      if (email && password) {
+        currentUser = email;
+        showScreen('dashboard');
+      }
+    }
+
+    function showScreen(screen) {
+      document.querySelectorAll('[id$="Screen"]').forEach(s => s.classList.add('hidden'));
+      document.getElementById(screen + 'Screen').classList.remove('hidden');
+      if (screen === 'dashboard') updateDashboard();
+      if (screen === 'fields') renderFields();
+      if (screen === 'inventory') renderInventory();
+      if (screen === 'insights') renderInsights();
+      if (screen === 'scouting') initScouting();
+    }
+
+    function updateDashboard() {
+      const totalAcres = fields.reduce((sum, f) => sum + f.acres, 0);
+      const totalRevenue = activityLogs.reduce((sum, log) => sum + (log.revenue || 0), 0);
+      const totalExpenses = activityLogs.reduce((sum, log) => sum + (log.cost || 0), 0);
+      const netProfit = totalRevenue - totalExpenses;
+      const inventoryValue = inventory.reduce((sum, p) => sum + p.totalValue, 0);
+
+      document.getElementById('statFields').textContent = fields.length;
+      document.getElementById('statAcres').textContent = totalAcres > 0 ? `${totalAcres.toFixed(2)} acres` : 'Add your first field';
+      
+      if (totalRevenue > 0) {
+        document.getElementById('statProfit').textContent = `$${netProfit.toLocaleString()}`;
+        document.getElementById('statROI').textContent = `${((netProfit / totalRevenue) * 100).toFixed(1)}% ROI`;
+        document.getElementById('statProfitCard').style.background = 'linear-gradient(135deg, #2196F3 0%, #1976D2 100%)';
+      }
+
+      document.getElementById('statExpenses').textContent = `$${totalExpenses.toLocaleString()}`;
+      document.getElementById('statExpensesPerAcre').textContent = totalExpenses > 0 && totalAcres > 0 ? `$${(totalExpenses / totalAcres).toFixed(2)}/acre` : 'Start logging activities';
+      
+      document.getElementById('statInventory').textContent = `$${inventoryValue.toLocaleString()}`;
+      document.getElementById('statInventoryCount').textContent = `${inventory.length} ${inventory.length === 1 ? 'product' : 'products'}`;
+
+      // Recent activity
+      const recent = activityLogs.slice(-5).reverse();
+      if (recent.length === 0) {
+        document.getElementById('recentActivity').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No activities logged yet</p>';
+      } else {
+        document.getElementById('recentActivity').innerHTML = recent.map(log => `
+          <div style="padding: 15px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between;">
+            <div>
+              <div style="font-weight: 600;">${log.activity}</div>
+              <div style="font-size: 14px; color: #666;">${log.field} • ${new Date(log.date).toLocaleDateString()}</div>
+            </div>
+            <div style="text-align: right;">
+              ${log.revenue > 0 ? `<div style="color: #4CAF50; font-weight: 600;">+$${log.revenue.toLocaleString()}</div>` : ''}
+              ${log.cost > 0 ? `<div style="color: #FF9800; font-size: 14px;">$${log.cost.toFixed(2)}</div>` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Pest history
+      const recentPests = pestObservations.slice(-5).reverse();
+      if (recentPests.length === 0) {
+        document.getElementById('pestHistory').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No pest scouting yet</p>';
+      } else {
+        document.getElementById('pestHistory').innerHTML = recentPests.map(obs => {
+          const severityColor = obs.severity <= 2 ? '#4CAF50' : obs.severity <= 3 ? '#FF9800' : '#f44336';
+          const severityText = obs.severity <= 2 ? 'Low' : obs.severity <= 3 ? 'Medium' : 'High';
+          return `
+            <div style="padding: 15px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center;">
+              <div style="flex: 1;">
+                ${obs.photo ? `<img src="${obs.photo}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; margin-right: 15px; float: left;">` : ''}
+                <div style="font-weight: 600; color: #333;">${obs.pestType}</div>
+                <div style="font-size: 14px; color: #666;">${obs.fieldName} • ${new Date(obs.timestamp).toLocaleDateString()}</div>
+                ${obs.notes ? `<div style="font-size: 12px; color: #999; margin-top: 5px;">${obs.notes}</div>` : ''}
+              </div>
+              <div style="text-align: right;">
+                <div style="padding: 4px 12px; background: ${severityColor}; color: white; border-radius: 20px; font-size: 12px; font-weight: 600;">${severityText}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    }
+
+    // Map functions
+    function initMap() {
+      if (map) {
+        map.remove();
+      }
+
+      // Get user's location
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition((position) => {
+          createMap(position.coords.longitude, position.coords.latitude);
+        }, () => {
+          // Default to center US if location denied
+          createMap(-93.0, 40.0);
+        });
+      } else {
+        createMap(-93.0, 40.0);
+      }
+    }
+
+    function createMap(lng, lat) {
+      map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: [lng, lat],
+        zoom: 15
+      });
+
+      map.addControl(new mapboxgl.NavigationControl());
+
+      // Click to add points
+      map.on('click', (e) => {
+        addMapPoint(e.lngLat.lng, e.lngLat.lat);
+      });
+    }
+
+    function addMapPoint(lng, lat) {
+      mapPoints.push([lng, lat]);
+      
+      // Add marker
+      const el = document.createElement('div');
+      el.className = 'marker';
+      el.style.width = '20px';
+      el.style.height = '20px';
+      el.style.borderRadius = '50%';
+      el.style.backgroundColor = '#4CAF50';
+      el.style.border = '3px solid white';
+      el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+      
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat([lng, lat])
+        .addTo(map);
+      
+      markersLayer.push(marker);
+
+      // Update UI
+      updateMapUI();
+      drawPolygon();
+    }
+
+    function drawPolygon() {
+      // Remove existing layers
+      if (map.getLayer('polygon')) {
+        map.removeLayer('polygon');
+      }
+      if (map.getLayer('polygon-outline')) {
+        map.removeLayer('polygon-outline');
+      }
+      if (map.getLayer('line')) {
+        map.removeLayer('line');
+      }
+      if (map.getSource('polygon')) {
+        map.removeSource('polygon');
+      }
+      if (map.getSource('line')) {
+        map.removeSource('line');
+      }
+
+      if (mapPoints.length < 2) return;
+
+      // Draw line for 2 points
+      if (mapPoints.length === 2) {
+        map.addSource('line', {
+          'type': 'geojson',
+          'data': {
+            'type': 'Feature',
+            'geometry': {
+              'type': 'LineString',
+              'coordinates': mapPoints
+            }
+          }
+        });
+
+        map.addLayer({
+          'id': 'line',
+          'type': 'line',
+          'source': 'line',
+          'layout': {},
+          'paint': {
+            'line-color': '#4CAF50',
+            'line-width': 3
+          }
+        });
+        return;
+      }
+
+      // Draw polygon for 3+ points
+      const closedPoints = [...mapPoints, mapPoints[0]];
+
+      map.addSource('polygon', {
+        'type': 'geojson',
+        'data': {
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Polygon',
+            'coordinates': [closedPoints]
+          }
+        }
+      });
+
+      map.addLayer({
+        'id': 'polygon',
+        'type': 'fill',
+        'source': 'polygon',
+        'layout': {},
+        'paint': {
+          'fill-color': '#4CAF50',
+          'fill-opacity': 0.3
+        }
+      });
+
+      map.addLayer({
+        'id': 'polygon-outline',
+        'type': 'line',
+        'source': 'polygon',
+        'layout': {},
+        'paint': {
+          'line-color': '#4CAF50',
+          'line-width': 3
+        }
+      });
+    }
+
+    function calculateAcres() {
+      if (mapPoints.length < 3) return 0;
+      
+      const closedPoints = [...mapPoints, mapPoints[0]];
+      const polygon = turf.polygon([closedPoints]);
+      const area = turf.area(polygon);
+      const acres = area / 4046.86; // Convert square meters to acres
+      
+      return acres;
+    }
+
+    function updateMapUI() {
+      const acres = calculateAcres();
+      const pointCount = mapPoints.length;
+
+      document.getElementById('mapAcres').textContent = acres.toFixed(2);
+      document.getElementById('mapPoints').textContent = pointCount === 0 ? 'Drop points to mark boundary' : 
+                                                          pointCount === 1 ? '1 point dropped' :
+                                                          pointCount === 2 ? '2 points dropped (need 1 more)' :
+                                                          `${pointCount} points dropped`;
+
+      // Show/hide buttons
+      document.getElementById('undoBtn').classList.toggle('hidden', pointCount === 0);
+      document.getElementById('createFieldBtn').classList.toggle('hidden', pointCount < 3);
+    }
+
+    function undoLastPoint() {
+      if (mapPoints.length === 0) return;
+      
+      mapPoints.pop();
+      const marker = markersLayer.pop();
+      marker.remove();
+      
+      updateMapUI();
+      drawPolygon();
+    }
+
+    function createFieldFromMap() {
+      const name = document.getElementById('newFieldName').value;
+      if (!name) {
+        alert('Please enter a field name');
+        return;
+      }
+
+      if (mapPoints.length < 3) {
+        alert('Please drop at least 3 points to create a field');
+        return;
+      }
+
+      const acres = calculateAcres();
+      
+      fields.push({ 
+        id: Date.now(), 
+        name, 
+        acres: parseFloat(acres.toFixed(2)), 
+        currentCrop: 'Not planted',
+        coordinates: [...mapPoints]
+      });
+      
+      saveData(); // Save to localStorage
+      cancelAddField();
+      renderFields();
+      alert(`Field "${name}" created successfully! (${acres.toFixed(2)} acres)`);
+    }
+
+    function showAddField() {
+      document.getElementById('addFieldForm').classList.remove('hidden');
+      initMap();
+    }
+
+    function cancelAddField() {
+      document.getElementById('addFieldForm').classList.add('hidden');
+      document.getElementById('newFieldName').value = '';
+      document.getElementById('shapefileInput').value = '';
+      
+      // Clear map
+      mapPoints = [];
+      markersLayer.forEach(m => m.remove());
+      markersLayer = [];
+      if (map) {
+        if (map.getLayer('polygon')) map.removeLayer('polygon');
+        if (map.getLayer('polygon-outline')) map.removeLayer('polygon-outline');
+        if (map.getLayer('line')) map.removeLayer('line');
+        if (map.getSource('polygon')) map.removeSource('polygon');
+        if (map.getSource('line')) map.removeSource('line');
+      }
+      updateMapUI();
+    }
+
+    // Shapefile handling
+    function handleShapefileUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          shp(e.target.result).then(function(geojson) {
+            if (!geojson || !geojson.features || geojson.features.length === 0) {
+              alert('No features found in shapefile');
+              return;
+            }
+
+            // Get the first feature (assume single field)
+            const feature = geojson.features[0];
+            
+            if (feature.geometry.type === 'Polygon') {
+              processPolygonCoordinates(feature.geometry.coordinates[0]);
+            } else if (feature.geometry.type === 'MultiPolygon') {
+              // Use the first polygon of the multipolygon
+              processPolygonCoordinates(feature.geometry.coordinates[0][0]);
+            } else {
+              alert('Shapefile must contain Polygon or MultiPolygon geometry');
+              return;
+            }
+
+            alert('Shapefile loaded successfully!');
+          }).catch(function(error) {
+            console.error('Error parsing shapefile:', error);
+            alert('Error loading shapefile. Make sure it\'s a valid .zip with .shp, .shx, and .dbf files.');
+          });
+        } catch (error) {
+          console.error('Error reading shapefile:', error);
+          alert('Error reading shapefile');
+        }
+      };
+      
+      reader.readAsArrayBuffer(file);
+    }
+
+    function processPolygonCoordinates(coordinates) {
+      // Clear existing points
+      mapPoints = [];
+      markersLayer.forEach(m => m.remove());
+      markersLayer = [];
+
+      // Add points from shapefile (excluding the last duplicate point)
+      const points = coordinates.slice(0, -1);
+      
+      points.forEach(coord => {
+        const [lng, lat] = coord;
+        mapPoints.push([lng, lat]);
+        
+        // Add marker
+        const el = document.createElement('div');
+        el.style.width = '20px';
+        el.style.height = '20px';
+        el.style.borderRadius = '50%';
+        el.style.backgroundColor = '#4CAF50';
+        el.style.border = '3px solid white';
+        el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+        
+        const marker = new mapboxgl.Marker(el)
+          .setLngLat([lng, lat])
+          .addTo(map);
+        
+        markersLayer.push(marker);
+      });
+
+      // Calculate bounds and fit map
+      if (mapPoints.length > 0) {
+        const bounds = mapPoints.reduce((bounds, coord) => {
+          return bounds.extend(coord);
+        }, new mapboxgl.LngLatBounds(mapPoints[0], mapPoints[0]));
+        
+        map.fitBounds(bounds, { padding: 50 });
+      }
+
+      updateMapUI();
+      drawPolygon();
+    }
+
+    // Fields Management
+    function deleteField(id) {
+      if (confirm('Delete this field?')) {
+        fields = fields.filter(f => f.id !== id);
+        saveData();
+        renderFields();
+      }
+    }
+
+    function renderFields() {
+      if (fields.length === 0) {
+        document.getElementById('fieldsList').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No fields yet. Create your first field above!</p>';
+        return;
+      }
+
+      document.getElementById('fieldsList').innerHTML = fields.map(f => `
+        <div class="field-card">
+          <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div>
+              <h3 style="font-size: 20px; margin-bottom: 8px;">${f.name}</h3>
+              <p style="color: #666;"><strong>${f.acres} acres</strong> • ${f.currentCrop}</p>
+            </div>
+            <button class="menu-btn" onclick="deleteField(${f.id})">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Activity logging functions
+    function filterActivities(value) {
+      const suggestions = document.getElementById('activitySuggestions');
+      if (!value) {
+        suggestions.classList.add('hidden');
+        return;
+      }
+
+      const matches = activityTypes.filter(a => a.toLowerCase().includes(value.toLowerCase()));
+      if (matches.length === 0) {
+        suggestions.classList.add('hidden');
+        return;
+      }
+
+      suggestions.innerHTML = matches.map(a => `
+        <div class="suggestion-item" onclick="selectActivity('${a}')">${a}</div>
+      `).join('');
+      suggestions.classList.remove('hidden');
+    }
+
+    function selectActivity(activity) {
+      document.getElementById('activityType').value = activity;
+      document.getElementById('activitySuggestions').classList.add('hidden');
+      document.getElementById('fieldSelectGroup').classList.remove('hidden');
+      document.getElementById('activityDate').value = new Date().toISOString().split('T')[0];
+      document.getElementById('dateGroup').classList.remove('hidden');
+      document.getElementById('fuelGroup').classList.remove('hidden');
+
+      const needsProduct = activity.toLowerCase().includes('application') || activity.toLowerCase().includes('spray') || activity.toLowerCase().includes('fertiliz');
+      const needsSeed = activity.toLowerCase().includes('plant');
+      const isHarvest = activity.toLowerCase().includes('harvest');
+
+      document.getElementById('productGroup').classList.toggle('hidden', !needsProduct);
+      document.getElementById('rateGroup').classList.toggle('hidden', !needsProduct);
+      document.getElementById('seedGroup').classList.toggle('hidden', !needsSeed);
+      document.getElementById('harvestGroup').classList.toggle('hidden', !isHarvest);
+
+      if (needsProduct) updateProductSelect();
+    }
+
+    function filterFields(value) {
+      const suggestions = document.getElementById('fieldSuggestions');
+      const matches = fields.filter(f => f.name.toLowerCase().includes(value.toLowerCase()));
+      
+      if (matches.length === 0) {
+        suggestions.classList.add('hidden');
+        return;
+      }
+
+      const isHarvest = document.getElementById('activityType').value.toLowerCase().includes('harvest');
+      let html = '';
+      
+      if (isHarvest) {
+        const totalAcres = fields.reduce((sum, f) => sum + f.acres, 0);
+        html += `<div class="suggestion-item" onclick="selectField('All Fields', ${totalAcres})"><strong>All Fields</strong><br>${totalAcres} total acres</div>`;
+      }
+
+      html += matches.map(f => `
+        <div class="suggestion-item" onclick="selectField('${f.name}', ${f.acres})">
+          <strong>${f.name}</strong><br>${f.acres} acres • ${f.currentCrop}
+        </div>
+      `).join('');
+
+      suggestions.innerHTML = html;
+      suggestions.classList.remove('hidden');
+    }
+
+    function selectField(name, acres) {
+      document.getElementById('fieldSelect').value = name;
+      document.getElementById('fieldSelect').dataset.acres = acres;
+      document.getElementById('fieldSuggestions').classList.add('hidden');
+      document.getElementById('logActivityBtn').classList.remove('hidden');
+      updateHarvestCalc();
+    }
+
+    function updateProductSelect() {
+      const select = document.getElementById('productSelect');
+      select.innerHTML = '<option value="">Select a product...</option>' + 
+        inventory.map(p => `<option value="${p.name}">${p.name} (${p.amount} ${p.unit}s available)</option>`).join('');
+    }
+
+    function updateHarvestCalc() {
+      const bushels = parseFloat(document.getElementById('totalBushels').value);
+      const price = parseFloat(document.getElementById('pricePerBushel').value);
+      const acres = parseFloat(document.getElementById('fieldSelect').dataset.acres);
+
+      if (bushels && price && acres) {
+        const revenue = bushels * price;
+        const bushelsPerAcre = bushels / acres;
+        const revenuePerAcre = revenue / acres;
+
+        document.getElementById('harvestCalc').innerHTML = `
+          <div><strong>Gross Revenue:</strong> $${revenue.toLocaleString()}</div>
+          <div><strong>Bushels/Acre:</strong> ${bushelsPerAcre.toFixed(1)}</div>
+          <div><strong>Revenue/Acre:</strong> $${revenuePerAcre.toFixed(2)}</div>
+        `;
+        document.getElementById('harvestCalc').style.display = 'block';
+      }
+    }
+
+    document.getElementById('totalBushels')?.addEventListener('input', updateHarvestCalc);
+    document.getElementById('pricePerBushel')?.addEventListener('input', updateHarvestCalc);
+
+    function logActivity() {
+      const activity = document.getElementById('activityType').value;
+      const field = document.getElementById('fieldSelect').value;
+      const date = document.getElementById('activityDate').value;
+      const acres = parseFloat(document.getElementById('fieldSelect').dataset.acres);
+
+      if (!activity || !field) {
+        alert('Please complete all required fields');
+        return;
+      }
+
+      let cost = parseFloat(document.getElementById('fuelCost').value) || 0;
+      let revenue = 0;
+
+      if (activity.toLowerCase().includes('harvest')) {
+        const bushels = parseFloat(document.getElementById('totalBushels').value);
+        const price = parseFloat(document.getElementById('pricePerBushel').value);
+        if (bushels && price) {
+          revenue = bushels * price;
+        }
+      }
+
+      const product = document.getElementById('productSelect')?.value;
+      if (product) {
+        const rate = parseFloat(document.getElementById('applicationRate').value);
+        const rateUnit = document.getElementById('rateUnit').value;
+        const prod = inventory.find(p => p.name === product);
+        
+        if (prod && rate) {
+          let amountUsed = 0;
+          if (rateUnit === 'oz/acre') amountUsed = (rate * acres) / 128;
+          else if (rateUnit === 'gal/acre') amountUsed = rate * acres;
+          else if (rateUnit === 'lb/acre') amountUsed = rate * acres;
+
+          cost += amountUsed * prod.costPerUnit;
+          prod.amount -= amountUsed;
+        }
+      }
+
+      if (activity.toLowerCase().includes('plant')) {
+        const variety = document.getElementById('seedVariety').value;
+        if (variety && field !== 'All Fields') {
+          const f = fields.find(fi => fi.name === field);
+          if (f) {
+            f.currentCrop = activity.toLowerCase().includes('corn') ? 'Corn' :
+                            activity.toLowerCase().includes('soybean') ? 'Soybeans' :
+                            activity.toLowerCase().includes('wheat') ? 'Wheat' : variety;
+          }
+        }
+      }
+
+      activityLogs.push({ id: Date.now(), activity, field, date, cost, revenue });
+      
+      saveData(); // Save to localStorage
+      alert('Activity logged successfully!');
+      showScreen('dashboard');
+    }
+
+    // Inventory Management
+    function showAddProduct() {
+      document.getElementById('addProductForm').classList.remove('hidden');
+    }
+
+    function cancelAddProduct() {
+      document.getElementById('addProductForm').classList.add('hidden');
+      document.getElementById('newProductName').value = '';
+      document.getElementById('newProductAmount').value = '';
+      document.getElementById('newProductTotalCost').value = '';
+      document.getElementById('newProductCostPerUnit').value = '';
+    }
+
+    function calcCostPerUnit() {
+      const total = parseFloat(document.getElementById('newProductTotalCost').value);
+      const amount = parseFloat(document.getElementById('newProductAmount').value);
+      if (total && amount) {
+        document.getElementById('newProductCostPerUnit').value = (total / amount).toFixed(2);
+      }
+    }
+
+    function calcTotalCost() {
+      const perUnit = parseFloat(document.getElementById('newProductCostPerUnit').value);
+      const amount = parseFloat(document.getElementById('newProductAmount').value);
+      if (perUnit && amount) {
+        document.getElementById('newProductTotalCost').value = (perUnit * amount).toFixed(2);
+      }
+    }
+
+    function detectCategory(name) {
+      const n = name.toLowerCase();
+      if (n.includes('fungicide') || n.includes('miravis')) return 'Fungicide';
+      if (n.includes('herbicide') || n.includes('roundup')) return 'Herbicide';
+      if (n.includes('insecticide')) return 'Insecticide';
+      if (n.includes('fertilizer') || n.includes('nitrogen')) return 'Fertilizer';
+      return 'Other';
+    }
+
+    function addProduct() {
+      const name = document.getElementById('newProductName').value;
+      const amount = parseFloat(document.getElementById('newProductAmount').value);
+      const unit = document.getElementById('newProductUnit').value;
+      const costPerUnit = parseFloat(document.getElementById('newProductCostPerUnit').value);
+
+      if (name && amount && costPerUnit) {
+        const category = detectCategory(name);
+        const totalValue = amount * costPerUnit;
+
+        const existing = inventory.find(p => p.name.toLowerCase() === name.toLowerCase() && p.unit === unit);
+        if (existing) {
+          const newAmount = existing.amount + amount;
+          const newTotal = (existing.amount * existing.costPerUnit) + (amount * costPerUnit);
+          existing.amount = newAmount;
+          existing.costPerUnit = newTotal / newAmount;
+          existing.totalValue = newAmount * existing.costPerUnit;
+        } else {
+          inventory.push({ id: Date.now(), name, amount, unit, costPerUnit, totalValue, category });
+        }
+
+        saveData(); // Save to localStorage
+        cancelAddProduct();
+        renderInventory();
+      }
+    }
+
+    function deleteProduct(id) {
+      if (confirm('Delete this product?')) {
+        inventory = inventory.filter(p => p.id !== id);
+        saveData();
+        renderInventory();
+      }
+    }
+
+    function renderInventory() {
+      if (inventory.length === 0) {
+        document.getElementById('inventoryList').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No products yet. Add your first product above!</p>';
+        return;
+      }
+
+      document.getElementById('inventoryList').innerHTML = inventory.map(p => `
+        <div class="product-card">
+          <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div style="flex: 1;">
+              <h3 style="font-size: 18px; margin-bottom: 8px;">${p.name}</h3>
+              <p style="color: #666;">${p.amount.toFixed(2)} ${p.unit}s • $${p.costPerUnit.toFixed(2)}/${p.unit}</p>
+              ${p.amount < 5 ? `<p style="color: #d32f2f; font-weight: 600; margin-top: 5px;">${p.amount.toFixed(2)} ${p.unit}s remaining</p>` : ''}
+              <p style="color: #4CAF50; font-weight: 600; font-size: 12px; margin-top: 5px;">${p.category}</p>
+            </div>
+            <div style="display: flex; align-items: center; gap: 15px;">
+              <div style="font-size: 18px; font-weight: 600;">$${p.totalValue.toFixed(2)}</div>
+              <button class="menu-btn" onclick="deleteProduct(${p.id})">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Insights
+    function renderInsights() {
+      const totalRevenue = activityLogs.reduce((sum, log) => sum + (log.revenue || 0), 0);
+      const totalExpenses = activityLogs.reduce((sum, log) => sum + (log.cost || 0), 0);
+      const netProfit = totalRevenue - totalExpenses;
+
+      if (activityLogs.length === 0) {
+        document.getElementById('insightsContent').innerHTML = '<div class="card" style="text-align: center; padding: 60px;"><p style="color: #999;">No activity data yet. Start logging activities to see insights!</p></div>';
+        return;
+      }
+
+      let html = `
+        <div class="card" style="background: #e8f5e9; border: 2px solid #4CAF50;">
+          <h3 style="color: #2e7d32; margin-bottom: 20px;">Return on Investment</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px;">
+            <div>
+              <div style="font-size: 14px; color: #666;">Gross Income</div>
+              <div style="font-size: 32px; font-weight: 700; color: #2e7d32;">$${totalRevenue.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="font-size: 14px; color: #666;">Total Expenses</div>
+              <div style="font-size: 32px; font-weight: 700; color: #d32f2f;">$${totalExpenses.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="font-size: 14px; color: #666;">Net Profit</div>
+              <div style="font-size: 32px; font-weight: 700; color: ${netProfit >= 0 ? '#2e7d32' : '#d32f2f'};">$${netProfit.toLocaleString()}</div>
+            </div>
+            <div>
+              <div style="font-size: 14px; color: #666;">ROI</div>
+              <div style="font-size: 32px; font-weight: 700; color: ${netProfit >= 0 ? '#2e7d32' : '#d32f2f'};">${totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(1) : '0'}%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 style="margin-bottom: 15px;">Recent Activity Timeline</h3>
+          ${activityLogs.slice(-10).reverse().map(log => `
+            <div style="padding: 12px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between;">
+              <div>
+                <strong>${log.activity}</strong><br>
+                <span style="color: #666; font-size: 14px;">${log.field} • ${new Date(log.date).toLocaleDateString()}</span>
+              </div>
+              <div style="text-align: right;">
+                ${log.revenue > 0 ? `<div style="color: #4CAF50; font-weight: 600;">+$${log.revenue.toLocaleString()}</div>` : ''}
+                ${log.cost > 0 ? `<div style="color: #d32f2f;">-$${log.cost.toFixed(2)}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      document.getElementById('insightsContent').innerHTML = html;
+    }
+
+    // Pest Scouting Functions
+    function initScouting() {
+      if (fields.length === 0) {
+        document.getElementById('scoutingFieldSelect').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No fields available. Please create a field first!</p>';
+        return;
+      }
+
+      document.getElementById('scoutingFieldSelect').classList.remove('hidden');
+      document.getElementById('scoutingMapView').classList.add('hidden');
+      
+      document.getElementById('scoutingFieldsList').innerHTML = fields.map(f => `
+        <div class="field-card" onclick="selectFieldForScouting(${f.id})" style="cursor: pointer;">
+          <h3 style="font-size: 18px; margin-bottom: 8px;">${f.name}</h3>
+          <p style="color: #666;"><strong>${f.acres} acres</strong> • ${f.currentCrop}</p>
+        </div>
+      `).join('');
+    }
+
+    function selectFieldForScouting(fieldId) {
+      currentScoutingField = fields.find(f => f.id === fieldId);
+      if (!currentScoutingField) return;
+
+      document.getElementById('scoutingFieldSelect').classList.add('hidden');
+      document.getElementById('scoutingMapView').classList.remove('hidden');
+      document.getElementById('scoutingFieldName').textContent = currentScoutingField.name;
+
+      initScoutingMap();
+      renderFieldPestObservations();
+    }
+
+    function initScoutingMap() {
+      if (scoutingMap) {
+        scoutingMap.remove();
+      }
+
+      // Get center of field
+      const coords = currentScoutingField.coordinates;
+      const center = turf.center(turf.polygon([coords])).geometry.coordinates;
+
+      scoutingMap = new mapboxgl.Map({
+        container: 'scoutingMap',
+        style: 'mapbox://styles/mapbox/satellite-streets-v12',
+        center: center,
+        zoom: 15
+      });
+
+      scoutingMap.addControl(new mapboxgl.NavigationControl());
+
+      scoutingMap.on('load', () => {
+        // Draw field boundary
+        scoutingMap.addSource('field-boundary', {
+          'type': 'geojson',
+          'data': {
+            'type': 'Feature',
+            'geometry': {
+              'type': 'Polygon',
+              'coordinates': [[...coords, coords[0]]]
+            }
+          }
+        });
+
+        scoutingMap.addLayer({
+          'id': 'field-fill',
+          'type': 'fill',
+          'source': 'field-boundary',
+          'paint': {
+            'fill-color': '#4CAF50',
+            'fill-opacity': 0.1
+          }
+        });
+
+        scoutingMap.addLayer({
+          'id': 'field-outline',
+          'type': 'line',
+          'source': 'field-boundary',
+          'paint': {
+            'line-color': '#4CAF50',
+            'line-width': 3
+          }
+        });
+
+        // Fit map to field
+        const bbox = turf.bbox(turf.polygon([coords]));
+        scoutingMap.fitBounds(bbox, { padding: 50 });
+
+        // Load existing pest markers
+        loadPestMarkers();
+      });
+    }
+
+    function togglePinMode() {
+      scoutingMode = scoutingMode === 'pin' ? null : 'pin';
+      updateScoutingButtons();
+      
+      if (scoutingMode === 'pin') {
+        scoutingMap.getCanvas().style.cursor = 'crosshair';
+        scoutingMap.once('click', (e) => {
+          tempPestLocation = { type: 'pin', coordinates: [e.lngLat.lng, e.lngLat.lat] };
+          showPestLogForm();
+        });
+      } else {
+        scoutingMap.getCanvas().style.cursor = '';
+      }
+    }
+
+    function toggleZoneMode() {
+      scoutingMode = scoutingMode === 'zone' ? null : 'zone';
+      updateScoutingButtons();
+      
+      if (scoutingMode === 'zone') {
+        scoutingMap.getCanvas().style.cursor = 'crosshair';
+        zonePoints = [];
+        zoneMarkers = [];
+        alert('Click on the map to drop points for the pest zone. Click the first point again to close the zone.');
+        
+        scoutingMap.on('click', handleZoneClick);
+      } else {
+        scoutingMap.getCanvas().style.cursor = '';
+        scoutingMap.off('click', handleZoneClick);
+        clearZoneDrawing();
+      }
+    }
+
+    function handleZoneClick(e) {
+      const point = [e.lngLat.lng, e.lngLat.lat];
+      
+      // Check if clicking near first point to close zone
+      if (zonePoints.length >= 3) {
+        const firstPoint = zonePoints[0];
+        const distance = turf.distance(turf.point(point), turf.point(firstPoint), { units: 'meters' });
+        
+        if (distance < 10) { // Within 10 meters of first point
+          tempPestLocation = { type: 'zone', coordinates: [...zonePoints] };
+          scoutingMap.off('click', handleZoneClick);
+          clearZoneDrawing();
+          showPestLogForm();
+          return;
+        }
+      }
+      
+      zonePoints.push(point);
+      
+      // Add marker
+      const el = document.createElement('div');
+      el.style.width = '12px';
+      el.style.height = '12px';
+      el.style.borderRadius = '50%';
+      el.style.backgroundColor = '#FF5722';
+      el.style.border = '2px solid white';
+      
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat(point)
+        .addTo(scoutingMap);
+      
+      zoneMarkers.push(marker);
+      drawZonePreview();
+    }
+
+    function drawZonePreview() {
+      if (scoutingMap.getLayer('zone-preview')) {
+        scoutingMap.removeLayer('zone-preview');
+      }
+      if (scoutingMap.getSource('zone-preview')) {
+        scoutingMap.removeSource('zone-preview');
+      }
+
+      if (zonePoints.length < 2) return;
+
+      const geojsonType = zonePoints.length === 2 ? 'LineString' : 'Polygon';
+      const coordinates = zonePoints.length === 2 ? zonePoints : [[...zonePoints, zonePoints[0]]];
+
+      scoutingMap.addSource('zone-preview', {
+        'type': 'geojson',
+        'data': {
+          'type': 'Feature',
+          'geometry': {
+            'type': geojsonType,
+            'coordinates': coordinates
+          }
+        }
+      });
+
+      if (zonePoints.length === 2) {
+        scoutingMap.addLayer({
+          'id': 'zone-preview',
+          'type': 'line',
+          'source': 'zone-preview',
+          'paint': {
+            'line-color': '#FF5722',
+            'line-width': 2,
+            'line-dasharray': [2, 2]
+          }
+        });
+      } else {
+        scoutingMap.addLayer({
+          'id': 'zone-preview',
+          'type': 'fill',
+          'source': 'zone-preview',
+          'paint': {
+            'fill-color': '#FF5722',
+            'fill-opacity': 0.3
+          }
+        });
+      }
+    }
+
+    function clearZoneDrawing() {
+      zoneMarkers.forEach(m => m.remove());
+      zoneMarkers = [];
+      zonePoints = [];
+      
+      if (scoutingMap.getLayer('zone-preview')) {
+        scoutingMap.removeLayer('zone-preview');
+      }
+      if (scoutingMap.getSource('zone-preview')) {
+        scoutingMap.removeSource('zone-preview');
+      }
+    }
+
+    function markWholeField() {
+      tempPestLocation = { type: 'field', coordinates: currentScoutingField.coordinates };
+      showPestLogForm();
+    }
+
+    function updateScoutingButtons() {
+      document.getElementById('pinModeBtn').style.background = scoutingMode === 'pin' ? '#d84315' : '#FF5722';
+      document.getElementById('zoneModeBtn').style.background = scoutingMode === 'zone' ? '#EF6C00' : '#FF9800';
+    }
+
+    function showPestLogForm() {
+      document.getElementById('pestLogForm').classList.remove('hidden');
+      scoutingMap.getCanvas().style.cursor = '';
+    }
+
+    function cancelPestLog() {
+      document.getElementById('pestLogForm').classList.add('hidden');
+      document.getElementById('pestType').value = '';
+      document.getElementById('pestSeverity').value = '3';
+      document.getElementById('pestPhoto').value = '';
+      document.getElementById('pestNotes').value = '';
+      tempPestLocation = null;
+      scoutingMode = null;
+      updateScoutingButtons();
+      clearZoneDrawing();
+    }
+
+    function updateSeverityLabel(value) {
+      const labels = ['', 'Very Low', 'Low', 'Medium', 'High', 'Very High'];
+      const colors = ['', '#4CAF50', '#8BC34A', '#FF9800', '#FF5722', '#d32f2f'];
+      document.getElementById('severityLabel').textContent = labels[value];
+      document.getElementById('severityLabel').style.color = colors[value];
+    }
+
+    function savePestObservation() {
+      const pestType = document.getElementById('pestType').value;
+      const severity = parseInt(document.getElementById('pestSeverity').value);
+      const notes = document.getElementById('pestNotes').value;
+      const photoInput = document.getElementById('pestPhoto');
+
+      if (!pestType) {
+        alert('Please enter a pest type');
+        return;
+      }
+
+      const observation = {
+        id: Date.now(),
+        fieldId: currentScoutingField.id,
+        fieldName: currentScoutingField.name,
+        pestType: pestType,
+        severity: severity,
+        notes: notes,
+        location: tempPestLocation,
+        timestamp: new Date().toISOString(),
+        photo: null
+      };
+
+      // Handle photo if uploaded
+      if (photoInput.files && photoInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          observation.photo = e.target.result;
+          pestObservations.push(observation);
+          finalizePestObservation();
+        };
+        reader.readAsDataURL(photoInput.files[0]);
+      } else {
+        pestObservations.push(observation);
+        finalizePestObservation();
+      }
+    }
+
+    function finalizePestObservation() {
+      saveData(); // Save to localStorage
+      cancelPestLog();
+      loadPestMarkers();
+      renderFieldPestObservations();
+      alert('Pest observation saved!');
+    }
+
+    function loadPestMarkers() {
+      const fieldObs = pestObservations.filter(obs => obs.fieldId === currentScoutingField.id);
+      
+      fieldObs.forEach(obs => {
+        const severityColor = obs.severity <= 2 ? '#4CAF50' : obs.severity <= 3 ? '#FF9800' : '#f44336';
+        
+        if (obs.location.type === 'pin') {
+          const el = document.createElement('div');
+          el.style.width = '24px';
+          el.style.height = '24px';
+          el.style.borderRadius = '50%';
+          el.style.backgroundColor = severityColor;
+          el.style.border = '3px solid white';
+          el.style.boxShadow = '0 2px 4px rgba(0,0,0,0.3)';
+          el.style.cursor = 'pointer';
+          
+          const marker = new mapboxgl.Marker(el)
+            .setLngLat(obs.location.coordinates)
+            .setPopup(new mapboxgl.Popup().setHTML(`
+              <strong>${obs.pestType}</strong><br>
+              Severity: ${obs.severity}/5<br>
+              ${obs.notes ? obs.notes : ''}
+            `))
+            .addTo(scoutingMap);
+        } else if (obs.location.type === 'zone') {
+          const layerId = `zone-${obs.id}`;
+          
+          if (!scoutingMap.getSource(layerId)) {
+            scoutingMap.addSource(layerId, {
+              'type': 'geojson',
+              'data': {
+                'type': 'Feature',
+                'geometry': {
+                  'type': 'Polygon',
+                  'coordinates': [[...obs.location.coordinates, obs.location.coordinates[0]]]
+                }
+              }
+            });
+
+            scoutingMap.addLayer({
+              'id': layerId,
+              'type': 'fill',
+              'source': layerId,
+              'paint': {
+                'fill-color': severityColor,
+                'fill-opacity': 0.4
+              }
+            });
+          }
+        }
+      });
+    }
+
+    function renderFieldPestObservations() {
+      const fieldObs = pestObservations.filter(obs => obs.fieldId === currentScoutingField.id);
+      
+      if (fieldObs.length === 0) {
+        document.getElementById('pestObservationsList').innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No observations yet for this field</p>';
+        return;
+      }
+
+      document.getElementById('pestObservationsList').innerHTML = fieldObs.reverse().map(obs => {
+        const severityColor = obs.severity <= 2 ? '#4CAF50' : obs.severity <= 3 ? '#FF9800' : '#f44336';
+        const severityText = obs.severity <= 2 ? 'Low' : obs.severity <= 3 ? 'Medium' : 'High';
+        const locationText = obs.location.type === 'pin' ? 'Point' : obs.location.type === 'zone' ? 'Zone' : 'Whole Field';
+        
+        return `
+          <div style="padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 10px;">
+            ${obs.photo ? `<img src="${obs.photo}" style="width: 100%; height: 150px; object-fit: cover; border-radius: 6px; margin-bottom: 10px;">` : ''}
+            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+              <div>
+                <strong style="font-size: 16px;">${obs.pestType}</strong>
+                <div style="font-size: 12px; color: #666; margin-top: 4px;">${locationText} • ${new Date(obs.timestamp).toLocaleString()}</div>
+              </div>
+              <div style="padding: 4px 12px; background: ${severityColor}; color: white; border-radius: 20px; font-size: 12px; font-weight: 600;">${severityText}</div>
+            </div>
+            ${obs.notes ? `<div style="font-size: 14px; color: #555; margin-top: 8px;">${obs.notes}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    }
+
+    function backToFieldSelection() {
+      document.getElementById('scoutingMapView').classList.add('hidden');
+      document.getElementById('scoutingFieldSelect').classList.remove('hidden');
+      currentScoutingField = null;
+      if (scoutingMap) {
+        scoutingMap.remove();
+        scoutingMap = null;
+      }
+    }
+
+    // Initialize
+    loadData(); // Load saved data from localStorage
+    showScreen('login');
+  </script>
+</body>
+</html>
