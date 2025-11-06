@@ -106,7 +106,7 @@
     </div>
 
     <!-- Location Settings Modal -->
-    <div id="locationModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: flex; align-items: center; justify-content: center;">
+    <div id="locationModal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; display: none; align-items: center; justify-content: center;">
       <div style="background: white; padding: 30px; border-radius: 16px; max-width: 500px; width: 90%; box-shadow: 0 8px 32px rgba(0,0,0,0.3);">
         <h2 style="margin-bottom: 20px; font-size: 24px; font-weight: 600;">Set Weather Location</h2>
 
@@ -1263,7 +1263,9 @@
 
     // Location Settings Functions
     function showLocationSettings() {
-      document.getElementById('locationModal').classList.remove('hidden');
+      const modal = document.getElementById('locationModal');
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
       updateCurrentLocationDisplay();
 
       // Pre-fill manual inputs if location exists
@@ -1274,7 +1276,9 @@
     }
 
     function closeLocationSettings() {
-      document.getElementById('locationModal').classList.add('hidden');
+      const modal = document.getElementById('locationModal');
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
     }
 
     function updateCurrentLocationDisplay() {
