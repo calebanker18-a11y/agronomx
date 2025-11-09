@@ -111,7 +111,8 @@
       <button class="btn action-btn" onclick="showScreen('log')">📝 Log Activity</button>
       <button class="btn btn-secondary action-btn" onclick="showScreen('fields')">🌾 Manage Fields</button>
       <button class="btn action-btn" style="background: #FF5722;" onclick="showScreen('scouting')">🌿 Crop Scouting</button>
-      <button class="btn action-btn" style="background: #9C27B0;" onclick="showScreen('inventory')">📦 Inventory</button>
+      <button class="btn action-btn" style="background: #9C27B0;" onclick="showScreen('equipment')">🚜 Equipment</button>
+      <button class="btn action-btn" style="background: #FF9800;" onclick="showScreen('testPlots')">🎯 Test Plots</button>
       <button class="btn action-btn" style="background: #667eea;" onclick="showScreen('operation')">📊 My Operation</button>
     </div>
 
@@ -564,6 +565,84 @@
     <div id="operationContent" style="display: grid; gap: 30px;"></div>
   </div>
 
+  <!-- Equipment Screen -->
+  <div id="equipmentScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">🚜 Equipment Management</h2>
+
+    <button class="btn" onclick="showAddEquipment()" style="margin-bottom: 20px;">+ Add Equipment</button>
+
+    <!-- Add Equipment Form -->
+    <div id="addEquipmentForm" class="card hidden" style="max-width: 600px; margin-bottom: 30px;">
+      <h3 style="margin-bottom: 20px;">Add New Equipment</h3>
+
+      <div class="form-group">
+        <label>Equipment Name</label>
+        <input type="text" id="equipmentName" placeholder="e.g., John Deere 1775NT 16Row30">
+      </div>
+
+      <div class="form-group">
+        <label>Equipment Type</label>
+        <select id="equipmentType" onchange="updateEquipmentFields()">
+          <option value="">Select type...</option>
+          <option value="Planter">Planter</option>
+          <option value="Sprayer">Sprayer</option>
+          <option value="Combine">Combine</option>
+          <option value="Spreader">Spreader</option>
+          <option value="Tillage">Tillage</option>
+        </select>
+      </div>
+
+      <!-- Planter-specific fields -->
+      <div id="planterFields" class="hidden">
+        <div class="form-group">
+          <label>Number of Rows</label>
+          <input type="number" id="equipmentRows" placeholder="e.g., 16" oninput="calculatePlanterWidth()">
+        </div>
+        <div class="form-group">
+          <label>Row Spacing (inches)</label>
+          <select id="equipmentRowSpacing" onchange="calculatePlanterWidth()">
+            <option value="30">30 inches</option>
+            <option value="20">20 inches</option>
+            <option value="15">15 inches</option>
+            <option value="7.5">7.5 inches</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Sprayer/Combine/Spreader fields -->
+      <div id="widthFields" class="hidden">
+        <div class="form-group">
+          <label>Swath Width (feet)</label>
+          <input type="number" id="equipmentSwathWidth" placeholder="e.g., 120">
+        </div>
+      </div>
+
+      <div id="calculatedWidth" style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 15px 0; display: none;">
+        <strong>Calculated Working Width:</strong> <span id="workingWidthDisplay" style="font-size: 18px; color: #2e7d32;">-</span> feet
+      </div>
+
+      <div style="display: flex; gap: 10px;">
+        <button class="btn" onclick="saveEquipment()" style="flex: 1;">Save Equipment</button>
+        <button class="btn btn-danger" onclick="cancelAddEquipment()" style="flex: 1;">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Equipment List -->
+    <div id="equipmentList" class="card"></div>
+  </div>
+
+  <!-- Test Plots Screen -->
+  <div id="testPlotsScreen" class="container hidden">
+    <button class="btn" onclick="showScreen('dashboard')">← Back to Dashboard</button>
+    <h2 style="font-size: 24px; font-weight: 600; color: #333; margin: 30px 0 20px;">🎯 Test Plots</h2>
+    <p style="color: #666; margin-bottom: 20px;">Create precision test plots for variety trials and treatment comparisons</p>
+
+    <button class="btn" onclick="startTestPlot()" style="margin-bottom: 20px;">+ Create Test Plot</button>
+
+    <div id="testPlotsList"></div>
+  </div>
+
   <script>
     mapboxgl.accessToken = 'pk.eyJ1IjoiY2FsZWIxMDAyIiwiYSI6ImNtaG1uNXh3NTBkcmEyaXE0ZG15aHllZGMifQ.t1Y6b25l7tzkiClKXf_lBA';
     
@@ -752,6 +831,8 @@
       if (screen === 'insights') renderInsights();
       if (screen === 'scouting') initScouting();
       if (screen === 'operation') renderMyOperation();
+      if (screen === 'equipment') renderEquipment();
+      if (screen === 'testPlots') renderTestPlots();
     }
 
     function updateDashboard() {
