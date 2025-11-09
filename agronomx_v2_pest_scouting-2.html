@@ -643,8 +643,8 @@
     <div id="testPlotsList"></div>
 
     <!-- Test Plot Creation Wizard -->
-    <div id="testPlotWizard" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; display: flex; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;">
-      <div style="background: white; border-radius: 16px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+    <div id="testPlotWizard" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10000; overflow-y: auto; padding: 20px;">
+      <div style="background: white; border-radius: 16px; max-width: 800px; width: 100%; margin: 0 auto; box-shadow: 0 20px 60px rgba(0,0,0,0.3); position: relative;">
         <div style="padding: 30px;">
           <h2 style="margin: 0 0 10px; font-size: 24px;">Create Test Plot</h2>
           <p style="color: #666; margin: 0 0 30px;">Follow the steps to create a precision test plot</p>
@@ -654,7 +654,7 @@
             <h3 style="font-size: 18px; margin-bottom: 15px; color: #2e7d32;">Step 1: Select Field</h3>
             <div class="form-group">
               <label>Field</label>
-              <select id="plotFieldSelect" onchange="loadFieldForPlot()">
+              <select id="plotFieldSelect" onchange="loadFieldForPlot()" style="position: relative; z-index: 1;">
                 <option value="">Choose a field...</option>
               </select>
             </div>
@@ -1699,6 +1699,8 @@
     let plotBoundaryMap = null;
 
     function startTestPlot() {
+      console.log('startTestPlot called - Equipment:', equipment.length, 'Fields:', fields.length);
+
       if (equipment.length === 0) {
         alert('Please add equipment first before creating test plots');
         return;
@@ -1722,13 +1724,17 @@
 
       // Populate field dropdown
       const fieldSelect = document.getElementById('plotFieldSelect');
-      fieldSelect.innerHTML = '<option value="">Choose a field...</option>' +
+      const fieldOptions = '<option value="">Choose a field...</option>' +
         fields.map((f, i) => `<option value="${i}">${f.name}</option>`).join('');
+      fieldSelect.innerHTML = fieldOptions;
+      console.log('Field options populated:', fields.map(f => f.name));
 
       // Populate equipment dropdown
       const equipmentSelect = document.getElementById('plotEquipmentSelect');
-      equipmentSelect.innerHTML = '<option value="">Choose equipment...</option>' +
+      const equipmentOptions = '<option value="">Choose equipment...</option>' +
         equipment.map((eq, i) => `<option value="${i}">${eq.name} (${eq.type})</option>`).join('');
+      equipmentSelect.innerHTML = equipmentOptions;
+      console.log('Equipment options populated:', equipment.map(e => e.name));
 
       // Set today's date
       const today = new Date().toISOString().split('T')[0];
@@ -1741,71 +1747,102 @@
 
       // Show wizard
       document.getElementById('testPlotWizard').classList.remove('hidden');
+      console.log('Test plot wizard opened');
     }
 
     function loadFieldForPlot() {
-      const fieldIndex = parseInt(document.getElementById('plotFieldSelect').value);
-      if (isNaN(fieldIndex)) {
+      const fieldSelect = document.getElementById('plotFieldSelect');
+      const fieldIndex = parseInt(fieldSelect.value);
+
+      console.log('loadFieldForPlot called, fieldIndex:', fieldIndex, 'fields.length:', fields.length);
+
+      if (isNaN(fieldIndex) || fieldIndex < 0) {
         document.getElementById('plotStep1Next').disabled = true;
         document.getElementById('plotFieldMap').style.display = 'none';
+        return;
+      }
+
+      if (fieldIndex >= fields.length) {
+        console.error('Field index out of bounds');
+        alert('Error: Invalid field selection');
         return;
       }
 
       currentPlotData.field = fields[fieldIndex];
       document.getElementById('plotStep1Next').disabled = false;
 
+      console.log('Selected field:', currentPlotData.field.name);
+
       // Show field on map
       const mapDiv = document.getElementById('plotFieldMap');
       mapDiv.style.display = 'block';
 
+      // Clean up previous map
       if (plotFieldMap) {
-        plotFieldMap.remove();
+        try {
+          plotFieldMap.remove();
+          plotFieldMap = null;
+        } catch (e) {
+          console.error('Error removing previous map:', e);
+        }
       }
 
-      plotFieldMap = new mapboxgl.Map({
-        container: 'plotFieldMap',
-        style: 'mapbox://styles/mapbox/satellite-v9',
-        center: [currentPlotData.field.coordinates[0][0][0], currentPlotData.field.coordinates[0][0][1]],
-        zoom: 14
-      });
+      // Wait a tick for the container to be visible
+      setTimeout(() => {
+        try {
+          plotFieldMap = new mapboxgl.Map({
+            container: 'plotFieldMap',
+            style: 'mapbox://styles/mapbox/satellite-v9',
+            center: [currentPlotData.field.coordinates[0][0][0], currentPlotData.field.coordinates[0][0][1]],
+            zoom: 14
+          });
 
-      plotFieldMap.on('load', () => {
-        plotFieldMap.addSource('field', {
-          type: 'geojson',
-          data: {
-            type: 'Feature',
-            geometry: {
-              type: 'Polygon',
-              coordinates: currentPlotData.field.coordinates
-            }
-          }
-        });
+          plotFieldMap.on('load', () => {
+            plotFieldMap.addSource('field', {
+              type: 'geojson',
+              data: {
+                type: 'Feature',
+                geometry: {
+                  type: 'Polygon',
+                  coordinates: currentPlotData.field.coordinates
+                }
+              }
+            });
 
-        plotFieldMap.addLayer({
-          id: 'field-fill',
-          type: 'fill',
-          source: 'field',
-          paint: {
-            'fill-color': '#4CAF50',
-            'fill-opacity': 0.3
-          }
-        });
+            plotFieldMap.addLayer({
+              id: 'field-fill',
+              type: 'fill',
+              source: 'field',
+              paint: {
+                'fill-color': '#4CAF50',
+                'fill-opacity': 0.3
+              }
+            });
 
-        plotFieldMap.addLayer({
-          id: 'field-outline',
-          type: 'line',
-          source: 'field',
-          paint: {
-            'line-color': '#2e7d32',
-            'line-width': 3
-          }
-        });
+            plotFieldMap.addLayer({
+              id: 'field-outline',
+              type: 'line',
+              source: 'field',
+              paint: {
+                'line-color': '#2e7d32',
+                'line-width': 3
+              }
+            });
 
-        // Fit to field bounds
-        const polygon = turf.polygon(currentPlotData.field.coordinates);
-        const bbox = turf.bbox(polygon);
-        plotFieldMap.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
-      });
+            // Fit to field bounds
+            const polygon = turf.polygon(currentPlotData.field.coordinates);
+            const bbox = turf.bbox(polygon);
+            plotFieldMap.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+          });
+
+          plotFieldMap.on('error', (e) => {
+            console.error('Map error:', e);
+          });
+        } catch (e) {
+          console.error('Error creating map:', e);
+          alert('Error loading map. Please try again.');
+        }
+      }, 100);
     }
 
     function updatePlotEquipmentInfo() {
