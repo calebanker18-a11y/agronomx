@@ -658,7 +658,7 @@
                 <option value="">Choose a field...</option>
               </select>
             </div>
-            <div id="plotFieldMap" style="height: 300px; border-radius: 8px; margin: 15px 0; display: none;"></div>
+            <div id="plotFieldMap" style="height: 300px; width: 100%; border-radius: 8px; margin: 15px 0; display: none; background: #f5f5f5; position: relative;"></div>
             <button class="btn" onclick="nextPlotStep(2)" style="margin-top: 15px;" id="plotStep1Next" disabled>Next: Choose Equipment →</button>
           </div>
 
@@ -706,6 +706,12 @@
               <input type="number" id="plotCustomLength" placeholder="e.g., 500" oninput="calculatePlotDimensions()">
             </div>
 
+            <div class="form-group">
+              <label>Buffer Margin (feet)</label>
+              <input type="number" id="plotBufferMargin" value="0" min="0" placeholder="e.g., 10" oninput="calculatePlotDimensions()">
+              <p style="font-size: 13px; color: #666; margin: 5px 0 0;">Offset plot X feet into the field from the boundary</p>
+            </div>
+
             <div id="plotDimensionsDisplay" style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin: 15px 0;">
               <div style="font-weight: 600; margin-bottom: 10px;">Plot Dimensions:</div>
               <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -717,6 +723,10 @@
                   <div style="font-size: 13px; color: #666;">Length</div>
                   <div style="font-size: 18px; font-weight: 600; color: #1565c0;"><span id="plotLengthDisplay">-</span> feet</div>
                 </div>
+              </div>
+              <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #90caf9;">
+                <div style="font-size: 13px; color: #666;">Buffer Margin</div>
+                <div style="font-size: 16px; font-weight: 600; color: #1565c0;"><span id="plotBufferDisplay">0</span> feet</div>
               </div>
             </div>
 
@@ -1644,6 +1654,13 @@
                     <div style="font-size: 13px; color: #999;">Date</div>
                     <div style="font-weight: 600;">${new Date(plot.details.date).toLocaleDateString()}</div>
                   </div>
+                  ${plot.bufferMargin && plot.bufferMargin > 0 ? `
+                    <div>
+                      <div style="font-size: 13px; color: #999;">Buffer Margin</div>
+                      <div style="font-weight: 600; color: #FF9800;">${plot.bufferMargin.toFixed(1)} ft</div>
+                      <div style="font-size: 12px; color: #666;">Offset from boundary</div>
+                    </div>
+                  ` : ''}
                 </div>
 
                 ${plot.equipmentType === 'Planter' ? `
@@ -1691,6 +1708,7 @@
       passes: 1,
       length: 'whole',
       customLength: null,
+      bufferMargin: 0,
       details: {},
       selectedBoundary: null,
       plotGeometry: null
@@ -1717,6 +1735,7 @@
         passes: 1,
         length: 'whole',
         customLength: null,
+        bufferMargin: 0,
         details: {},
         selectedBoundary: null,
         plotGeometry: null
@@ -1758,7 +1777,8 @@
 
       if (isNaN(fieldIndex) || fieldIndex < 0) {
         document.getElementById('plotStep1Next').disabled = true;
-        document.getElementById('plotFieldMap').style.display = 'none';
+        const mapDiv = document.getElementById('plotFieldMap');
+        mapDiv.style.display = 'none';
         return;
       }
 
@@ -1775,21 +1795,28 @@
 
       // Show field on map
       const mapDiv = document.getElementById('plotFieldMap');
-      mapDiv.style.display = 'block';
 
-      // Clean up previous map
+      // Clean up previous map first
       if (plotFieldMap) {
         try {
           plotFieldMap.remove();
           plotFieldMap = null;
+          console.log('Previous map removed');
         } catch (e) {
           console.error('Error removing previous map:', e);
         }
       }
 
-      // Wait a tick for the container to be visible
+      // Make container visible first
+      mapDiv.style.display = 'block';
+      console.log('Map container made visible');
+
+      // Wait for DOM to update and container to have dimensions
       setTimeout(() => {
         try {
+          console.log('Initializing map...');
+          console.log('Map container dimensions:', mapDiv.offsetWidth, 'x', mapDiv.offsetHeight);
+
           plotFieldMap = new mapboxgl.Map({
             container: 'plotFieldMap',
             style: 'mapbox://styles/mapbox/satellite-v9',
@@ -1797,7 +1824,11 @@
             zoom: 14
           });
 
+          console.log('Map object created');
+
           plotFieldMap.on('load', () => {
+            console.log('Map loaded successfully');
+
             plotFieldMap.addSource('field', {
               type: 'geojson',
               data: {
@@ -1833,16 +1864,19 @@
             const polygon = turf.polygon(currentPlotData.field.coordinates);
             const bbox = turf.bbox(polygon);
             plotFieldMap.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+
+            console.log('Field boundary added to map');
           });
 
           plotFieldMap.on('error', (e) => {
-            console.error('Map error:', e);
+            console.error('Mapbox error:', e);
           });
         } catch (e) {
           console.error('Error creating map:', e);
-          alert('Error loading map. Please try again.');
+          console.error('Error details:', e.message, e.stack);
+          alert('Error loading map: ' + e.message);
         }
-      }, 100);
+      }, 200);
     }
 
     function updatePlotEquipmentInfo() {
@@ -1921,6 +1955,11 @@
       }
 
       document.getElementById('plotLengthDisplay').textContent = plotLength > 0 ? plotLength.toFixed(1) : '-';
+
+      // Get buffer margin
+      const bufferMargin = parseFloat(document.getElementById('plotBufferMargin').value) || 0;
+      currentPlotData.bufferMargin = bufferMargin;
+      document.getElementById('plotBufferDisplay').textContent = bufferMargin.toFixed(1);
     }
 
     function generatePlotDetailsForm() {
@@ -2115,6 +2154,7 @@
         passes: currentPlotData.passes,
         length: currentPlotData.length,
         customLength: currentPlotData.customLength,
+        bufferMargin: currentPlotData.bufferMargin,
         details: currentPlotData.details,
         selectedBoundary: currentPlotData.selectedBoundary,
         color: plotColor,
@@ -2148,6 +2188,7 @@
       document.getElementById('plotEquipmentSelect').value = '';
       document.getElementById('plotPasses').value = '1';
       document.getElementById('plotLength').value = 'whole';
+      document.getElementById('plotBufferMargin').value = '0';
       document.getElementById('plotNotes').value = '';
       document.getElementById('boundarySelectedInfo').classList.add('hidden');
     }
