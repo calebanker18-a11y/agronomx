@@ -1792,6 +1792,47 @@
       document.getElementById('plotStep1Next').disabled = false;
 
       console.log('Selected field:', currentPlotData.field.name);
+      console.log('Field data:', currentPlotData.field);
+
+      // Validate field coordinates
+      if (!currentPlotData.field.coordinates || !Array.isArray(currentPlotData.field.coordinates)) {
+        console.error('Invalid field coordinates structure:', currentPlotData.field.coordinates);
+        alert('Error: Field has invalid coordinates');
+        return;
+      }
+
+      // Get center coordinates - handle different coordinate structures
+      let centerLng, centerLat;
+
+      // Try to extract coordinates from different possible structures
+      if (currentPlotData.field.center && Array.isArray(currentPlotData.field.center)) {
+        // If field has a center property
+        centerLng = currentPlotData.field.center[0];
+        centerLat = currentPlotData.field.center[1];
+        console.log('Using field.center:', centerLng, centerLat);
+      } else if (currentPlotData.field.coordinates[0] && currentPlotData.field.coordinates[0][0]) {
+        // Try coordinates[0][0] format (polygon)
+        if (Array.isArray(currentPlotData.field.coordinates[0][0])) {
+          centerLng = currentPlotData.field.coordinates[0][0][0];
+          centerLat = currentPlotData.field.coordinates[0][0][1];
+          console.log('Using coordinates[0][0]:', centerLng, centerLat);
+        } else {
+          // Try coordinates[0] format (simplified)
+          centerLng = currentPlotData.field.coordinates[0][0];
+          centerLat = currentPlotData.field.coordinates[0][1];
+          console.log('Using coordinates[0]:', centerLng, centerLat);
+        }
+      }
+
+      // Validate coordinates are numbers
+      if (isNaN(centerLng) || isNaN(centerLat)) {
+        console.error('Coordinates are NaN. centerLng:', centerLng, 'centerLat:', centerLat);
+        console.error('Full coordinates structure:', JSON.stringify(currentPlotData.field.coordinates, null, 2));
+        alert('Error: Field has invalid coordinate values. Please recreate this field.');
+        return;
+      }
+
+      console.log('Using center coordinates:', centerLng, centerLat);
 
       // Show field on map
       const mapDiv = document.getElementById('plotFieldMap');
@@ -1820,11 +1861,11 @@
           plotFieldMap = new mapboxgl.Map({
             container: 'plotFieldMap',
             style: 'mapbox://styles/mapbox/satellite-v9',
-            center: [currentPlotData.field.coordinates[0][0][0], currentPlotData.field.coordinates[0][0][1]],
+            center: [centerLng, centerLat],
             zoom: 14
           });
 
-          console.log('Map object created');
+          console.log('Map object created with center:', centerLng, centerLat);
 
           plotFieldMap.on('load', () => {
             console.log('Map loaded successfully');
@@ -1861,11 +1902,15 @@
             });
 
             // Fit to field bounds
-            const polygon = turf.polygon(currentPlotData.field.coordinates);
-            const bbox = turf.bbox(polygon);
-            plotFieldMap.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
-
-            console.log('Field boundary added to map');
+            try {
+              const polygon = turf.polygon(currentPlotData.field.coordinates);
+              const bbox = turf.bbox(polygon);
+              plotFieldMap.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 50 });
+              console.log('Field boundary added to map');
+            } catch (e) {
+              console.error('Error fitting bounds:', e);
+              // Map will still show at center coordinates
+            }
           });
 
           plotFieldMap.on('error', (e) => {
