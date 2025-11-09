@@ -1345,6 +1345,165 @@
       document.getElementById('operationContent').innerHTML = html || '<p style="text-align: center; color: #999; padding: 40px;">No data yet. Start logging activities and scouting!</p>';
     }
 
+    // Equipment Management
+    function showAddEquipment() {
+      document.getElementById('addEquipmentForm').classList.remove('hidden');
+    }
+
+    function updateEquipmentFields() {
+      const type = document.getElementById('equipmentType').value;
+      document.getElementById('planterFields').classList.toggle('hidden', type !== 'Planter');
+      document.getElementById('widthFields').classList.toggle('hidden', type === 'Planter' || type === '');
+
+      if (type === 'Planter') {
+        calculatePlanterWidth();
+      } else if (type && type !== 'Planter') {
+        document.getElementById('calculatedWidth').style.display = 'none';
+      }
+    }
+
+    function calculatePlanterWidth() {
+      const rows = parseInt(document.getElementById('equipmentRows').value);
+      const spacing = parseFloat(document.getElementById('equipmentRowSpacing').value);
+
+      if (rows && spacing) {
+        const widthFeet = (rows * spacing) / 12; // Convert inches to feet
+        document.getElementById('workingWidthDisplay').textContent = widthFeet.toFixed(1);
+        document.getElementById('calculatedWidth').style.display = 'block';
+      }
+    }
+
+    function saveEquipment() {
+      const name = document.getElementById('equipmentName').value;
+      const type = document.getElementById('equipmentType').value;
+
+      if (!name || !type) {
+        alert('Please enter equipment name and type');
+        return;
+      }
+
+      let workingWidth;
+      let details = {};
+
+      if (type === 'Planter') {
+        const rows = parseInt(document.getElementById('equipmentRows').value);
+        const spacing = parseFloat(document.getElementById('equipmentRowSpacing').value);
+
+        if (!rows || !spacing) {
+          alert('Please enter number of rows and row spacing');
+          return;
+        }
+
+        workingWidth = (rows * spacing) / 12;
+        details = { rows, rowSpacing: spacing };
+      } else {
+        const swathWidth = parseFloat(document.getElementById('equipmentSwathWidth').value);
+
+        if (!swathWidth) {
+          alert('Please enter swath width');
+          return;
+        }
+
+        workingWidth = swathWidth;
+        details = { swathWidth };
+      }
+
+      equipment.push({
+        id: Date.now(),
+        name,
+        type,
+        workingWidth,
+        details
+      });
+
+      saveData();
+      cancelAddEquipment();
+      renderEquipment();
+      updateDashboard();
+      alert('Equipment saved successfully!');
+    }
+
+    function cancelAddEquipment() {
+      document.getElementById('addEquipmentForm').classList.add('hidden');
+      document.getElementById('equipmentName').value = '';
+      document.getElementById('equipmentType').value = '';
+      document.getElementById('equipmentRows').value = '';
+      document.getElementById('equipmentRowSpacing').value = '30';
+      document.getElementById('equipmentSwathWidth').value = '';
+      document.getElementById('calculatedWidth').style.display = 'none';
+      document.getElementById('planterFields').classList.add('hidden');
+      document.getElementById('widthFields').classList.add('hidden');
+    }
+
+    function renderEquipment() {
+      if (equipment.length === 0) {
+        document.getElementById('equipmentList').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No equipment added yet</p>';
+        return;
+      }
+
+      document.getElementById('equipmentList').innerHTML = equipment.map(eq => `
+        <div style="padding: 20px; border-bottom: 1px solid #f0f0f0;">
+          <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div style="flex: 1;">
+              <div style="font-size: 18px; font-weight: 600; margin-bottom: 5px;">${eq.name}</div>
+              <div style="font-size: 14px; color: #666;">Type: ${eq.type}</div>
+              <div style="font-size: 14px; color: #2e7d32; font-weight: 600; margin-top: 5px;">
+                Working Width: ${eq.workingWidth.toFixed(1)} feet
+              </div>
+              ${eq.type === 'Planter' ? `
+                <div style="font-size: 13px; color: #999; margin-top: 5px;">
+                  ${eq.details.rows} rows @ ${eq.details.rowSpacing}" spacing
+                </div>
+              ` : ''}
+            </div>
+            <button class="btn btn-danger" onclick="deleteEquipment(${eq.id})" style="padding: 8px 16px;">Delete</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function deleteEquipment(id) {
+      if (confirm('Delete this equipment?')) {
+        equipment = equipment.filter(e => e.id !== id);
+        saveData();
+        renderEquipment();
+        updateDashboard();
+      }
+    }
+
+    function renderTestPlots() {
+      if (equipment.length === 0) {
+        document.getElementById('testPlotsList').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">Add equipment first before creating test plots</p>';
+        return;
+      }
+
+      if (testPlots.length === 0) {
+        document.getElementById('testPlotsList').innerHTML = '<p style="text-align: center; color: #999; padding: 40px;">No test plots created yet</p>';
+        return;
+      }
+
+      // Will display test plots here
+      document.getElementById('testPlotsList').innerHTML = testPlots.map(plot => `
+        <div class="card">
+          <div style="font-weight: 600; font-size: 18px;">${plot.label}</div>
+          <div style="color: #666; margin-top: 5px;">${plot.fieldName}</div>
+        </div>
+      `).join('');
+    }
+
+    function startTestPlot() {
+      if (equipment.length === 0) {
+        alert('Please add equipment first before creating test plots');
+        return;
+      }
+      if (fields.length === 0) {
+        alert('Please create fields first before creating test plots');
+        return;
+      }
+      // Test plot creation flow will be implemented next
+      alert('Test plot creation coming next!');
+    }
+
     function uploadGrowingZone() {
       const zone = prompt('Enter your USDA Growing Zone (e.g., 5a, 6b, 7a):');
       if (!zone) return;
